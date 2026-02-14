@@ -33,6 +33,7 @@ func TestCheck_AllMatch(t *testing.T) {
 	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
 	require.NoError(t, err)
 	assert.True(t, result.Pass)
+	assert.False(t, result.Skipped)
 	assert.Empty(t, result.Violations)
 }
 
@@ -83,6 +84,19 @@ func TestCheck_SkipGuardEnv(t *testing.T) {
 	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
 	require.NoError(t, err)
 	assert.True(t, result.Pass)
+	assert.True(t, result.Skipped)
+}
+
+func TestCheck_SkipGuardSetsSkippedFlag(t *testing.T) {
+	t.Setenv("CTX_SKIP_GUARD", "1")
+	profile := &config.Profile{SSHHost: "gh-work", GitName: "user", GitEmail: "user@work.com"}
+	fc := testutil.NewFakeCommander()
+
+	result, err := guard.Check(context.Background(), "/tmp/repo", profile, fc)
+	assert.NoError(t, err)
+	assert.True(t, result.Pass)
+	assert.True(t, result.Skipped)
+	assert.Empty(t, fc.Calls, "should not execute any commands when skipped")
 }
 
 func TestInstallHook_NoExisting(t *testing.T) {
