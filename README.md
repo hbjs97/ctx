@@ -49,24 +49,18 @@ sudo cp bin/ctx /usr/local/bin/
 ctx setup
 ```
 
-`~/.config/ctx/config.toml`에 템플릿이 생성된다. 자신의 환경에 맞게 편집한다:
+대화형 설정 마법사가 실행된다:
 
-```toml
-version = 1
+- 프로필 이름, git 사용자 정보 입력
+- `gh auth login` 자동 실행
+- `~/.ssh/config`에서 SSH host 자동 감지
+- `gh api`로 소속 조직 자동 조회
+- 셸 hook 자동 설치
 
-[profiles.work]
-gh_config_dir = "~/.config/gh-work"
-ssh_host = "github.com-work"
-git_name = "Your Name"
-git_email = "you@work.com"
-owners = ["your-org"]
+재실행하면 프로필 추가/수정/삭제가 가능하다. 기존 설정을 초기화하려면:
 
-[profiles.personal]
-gh_config_dir = "~/.config/gh-personal"
-ssh_host = "github.com-personal"
-git_name = "Your Name"
-git_email = "you@personal.com"
-owners = ["your-username"]
+```bash
+ctx setup --force
 ```
 
 ### 2. 리포 클론
@@ -100,7 +94,7 @@ ctx doctor
 
 | 명령 | 설명 |
 |------|------|
-| `ctx setup` | 초기 설정 파일 생성 |
+| `ctx setup [--force]` | 대화형 설정 마법사 (프로필 CRUD) |
 | `ctx clone <target>` | 리포 클론 + 프로필 자동 적용 |
 | `ctx init` | 기존 리포에 프로필 적용 |
 | `ctx status` | 현재 컨텍스트 확인 |
