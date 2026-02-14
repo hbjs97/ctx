@@ -67,6 +67,17 @@ func TestCheckSSHConnection_Success(t *testing.T) {
 	assert.Equal(t, doctor.StatusOK, result.Status)
 }
 
+func TestCheckSSHConnection_SuccessWithExitCode1(t *testing.T) {
+	// GitHub은 ssh -T 시 항상 exit code 1을 반환하지만
+	// "successfully authenticated" 메시지가 출력에 포함되면 성공이다.
+	fake := testutil.NewFakeCommander()
+	fake.Register("ssh -T", "Hi user! You've successfully authenticated, but GitHub does not provide shell access.", fmt.Errorf("exit status 1"))
+
+	result := doctor.CheckSSH(context.Background(), fake, "github.com-work")
+	assert.Equal(t, doctor.StatusOK, result.Status)
+	assert.Contains(t, result.Message, "연결 성공")
+}
+
 func TestCheckSSHConnection_Failure(t *testing.T) {
 	fake := testutil.NewFakeCommander()
 	fake.Register("ssh -T", "", fmt.Errorf("connection refused"))

@@ -84,11 +84,12 @@ func CheckGHAuth(ctx context.Context, cmd cmdexec.Commander, ghConfigDir string)
 
 // CheckSSH는 SSH 연결을 확인한다.
 func CheckSSH(ctx context.Context, cmd cmdexec.Commander, sshHost string) DiagResult {
-	_, err := cmd.Run(ctx, "ssh", "-T", fmt.Sprintf("git@%s", sshHost))
+	out, err := cmd.Run(ctx, "ssh", "-T", fmt.Sprintf("git@%s", sshHost))
+	outStr := string(out)
 	if err != nil {
-		errStr := err.Error()
-		// GitHub returns exit code 1 with "Hi user!" message — that's actually success
-		if strings.Contains(errStr, "Hi ") {
+		// GitHub은 ssh -T 시 항상 exit code 1을 반환한다.
+		// "successfully authenticated" 메시지가 출력에 포함되면 실제로는 성공이다.
+		if strings.Contains(outStr, "successfully authenticated") {
 			return DiagResult{
 				Name:    fmt.Sprintf("ssh_%s", sshHost),
 				Status:  StatusOK,
