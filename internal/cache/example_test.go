@@ -1,77 +1,132 @@
 package cache_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/hbjs97/ctx/internal/cache"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadCache_ValidJSON(t *testing.T) {
-	t.Skip("not implemented")
+	content := `{
+		"version": 1,
+		"entries": {
+			"company-org/api-server": {
+				"profile": "work",
+				"reason": "owner_rule",
+				"resolved_at": "2026-02-14T10:30:00Z",
+				"config_hash": "a1b2c3d4"
+			}
+		}
+	}`
+	path := testutil.TempCacheFile(t, content)
+	c, err := cache.Load(path)
 
-	// Given: a valid cache.json with entries
-	// When: LoadCache is called
-	// Then: returns Cache with correct entries
+	require.NoError(t, err)
+	assert.Equal(t, 1, c.Version)
+	assert.Len(t, c.Entries, 1)
+	assert.Equal(t, "work", c.Entries["company-org/api-server"].Profile)
 }
 
 func TestLoadCache_MissingFile(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache.json does not exist
-	// When: LoadCache is called
-	// Then: returns empty cache (not an error)
+	c, err := cache.Load("/nonexistent/cache.json")
+	require.NoError(t, err) // graceful: empty cache
+	assert.Empty(t, c.Entries)
 }
 
 func TestLoadCache_InvalidJSON(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache.json with invalid JSON
-	// When: LoadCache is called
-	// Then: returns empty cache with warning (graceful degradation)
+	path := testutil.TempCacheFile(t, "not json {{{")
+	c, err := cache.Load(path)
+	require.NoError(t, err) // graceful degradation
+	assert.Empty(t, c.Entries)
 }
 
 func TestLookup_Hit(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache has "company-org/api-server" -> "work", TTL valid, hash matches
-	// When: Lookup("company-org/api-server", currentHash) is called
-	// Then: returns "work" entry
+	c := &cache.Cache{
+		Entries: map[string]cache.Entry{
+			"org/repo": {
+				Profile:    "work",
+				Reason:     "owner_rule",
+				ResolvedAt: time.Now().Format(time.RFC3339),
+				ConfigHash: "abc123",
+			},
+		},
+	}
+	entry, ok := c.Lookup("org/repo", "abc123", 90)
+	assert.True(t, ok)
+	assert.Equal(t, "work", entry.Profile)
 }
 
 func TestLookup_TTLExpired(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache entry with resolved_at older than 90 days
-	// When: Lookup is called
-	// Then: returns nil (cache miss)
+	c := &cache.Cache{
+		Entries: map[string]cache.Entry{
+			"org/repo": {
+				Profile:    "work",
+				ResolvedAt: time.Now().Add(-91 * 24 * time.Hour).Format(time.RFC3339),
+				ConfigHash: "abc123",
+			},
+		},
+	}
+	_, ok := c.Lookup("org/repo", "abc123", 90)
+	assert.False(t, ok)
 }
 
 func TestLookup_HashMismatch(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache entry with config_hash "old" but current hash is "new"
-	// When: Lookup is called
-	// Then: returns nil (cache invalidated)
+	c := &cache.Cache{
+		Entries: map[string]cache.Entry{
+			"org/repo": {
+				Profile:    "work",
+				ResolvedAt: time.Now().Format(time.RFC3339),
+				ConfigHash: "old_hash",
+			},
+		},
+	}
+	_, ok := c.Lookup("org/repo", "new_hash", 90)
+	assert.False(t, ok)
 }
 
 func TestSave_NewEntry(t *testing.T) {
-	t.Skip("not implemented")
+	c := cache.New()
+	c.Set("org/repo", cache.Entry{
+		Profile:    "work",
+		Reason:     "probe",
+		ResolvedAt: time.Now().Format(time.RFC3339),
+		ConfigHash: "abc",
+	})
 
-	// Given: empty cache
-	// When: Save("owner/repo", "work", "owner_rule", hash) is called
-	// Then: cache.json is written with the new entry and file permissions 0600
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cache.json")
+	err := c.Save(path)
+	require.NoError(t, err)
+
+	info, _ := os.Stat(path)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+
+	loaded, err := cache.Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "work", loaded.Entries["org/repo"].Profile)
 }
 
 func TestSave_UpdateEntry(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: cache with existing entry for "owner/repo"
-	// When: Save is called with different profile
-	// Then: entry is updated with new profile, reason, and timestamp
+	c := cache.New()
+	c.Set("org/repo", cache.Entry{Profile: "work", Reason: "owner_rule"})
+	c.Set("org/repo", cache.Entry{Profile: "personal", Reason: "user_select"})
+	assert.Equal(t, "personal", c.Entries["org/repo"].Profile)
 }
 
 func TestInvalidate_ByProfile(t *testing.T) {
-	t.Skip("not implemented")
+	c := cache.New()
+	c.Set("org/repo1", cache.Entry{Profile: "work"})
+	c.Set("org/repo2", cache.Entry{Profile: "work"})
+	c.Set("user/repo3", cache.Entry{Profile: "personal"})
 
-	// Given: cache with multiple entries referencing "work" profile
-	// When: InvalidateByProfile("work") is called
-	// Then: all entries with profile "work" are removed
+	c.InvalidateByProfile("work")
+
+	assert.Len(t, c.Entries, 1)
+	assert.Contains(t, c.Entries, "user/repo3")
 }
