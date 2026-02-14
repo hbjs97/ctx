@@ -1,69 +1,87 @@
 package gh_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
+
+	"github.com/hbjs97/ctx/internal/gh"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProbeRepo_PushAccess(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh api repos/org/repo", `{"permissions":{"push":true,"admin":false}}`, nil)
 
-	// Given: gh api returns 200 with permissions.push=true
-	// When: ProbeRepo("owner/repo", profile) is called
-	// Then: returns ProbeResult with CanPush=true
+	a := gh.NewAdapter(fake)
+	result, err := a.ProbeRepo(context.Background(), "/tmp/gh-work", "org", "repo")
+
+	require.NoError(t, err)
+	assert.True(t, result.HasAccess)
+	assert.True(t, result.CanPush)
 }
 
 func TestProbeRepo_ReadOnly(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh api repos/org/repo", `{"permissions":{"push":false}}`, nil)
 
-	// Given: gh api returns 200 with permissions.push=false
-	// When: ProbeRepo is called
-	// Then: returns ProbeResult with CanPush=false, CanRead=true
+	a := gh.NewAdapter(fake)
+	result, err := a.ProbeRepo(context.Background(), "/tmp/gh-work", "org", "repo")
+
+	require.NoError(t, err)
+	assert.True(t, result.HasAccess)
+	assert.False(t, result.CanPush)
 }
 
 func TestProbeRepo_NotFound(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh api repos/org/repo", "", fmt.Errorf("HTTP 404: Not Found"))
 
-	// Given: gh api returns 404
-	// When: ProbeRepo is called
-	// Then: returns ProbeResult with CanPush=false, CanRead=false
-}
+	a := gh.NewAdapter(fake)
+	result, err := a.ProbeRepo(context.Background(), "/tmp/gh-work", "org", "repo")
 
-func TestProbeRepo_Forbidden_SSO(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: gh api returns 403 with X-GitHub-SSO header
-	// When: ProbeRepo is called
-	// Then: returns ProbeResult with SSORequired=true and authorize URL
+	require.NoError(t, err)
+	assert.False(t, result.HasAccess)
 }
 
 func TestProbeRepo_Unauthorized(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh api repos/org/repo", "", fmt.Errorf("HTTP 401"))
 
-	// Given: gh api returns 401
-	// When: ProbeRepo is called
-	// Then: returns ProbeResult with TokenExpired=true
+	a := gh.NewAdapter(fake)
+	result, err := a.ProbeRepo(context.Background(), "/tmp/gh-work", "org", "repo")
+
+	require.NoError(t, err)
+	assert.False(t, result.HasAccess)
 }
 
 func TestProbeAllProfiles(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{
+		Output: []byte(`{"permissions":{"push":true}}`),
+	}
 
-	// Given: 2 profiles, one with push access, one without
-	// When: ProbeAllProfiles("owner/repo") is called
-	// Then: returns results for both profiles
-}
+	a := gh.NewAdapter(fake)
+	profiles := map[string]string{
+		"work":     "/tmp/gh-work",
+		"personal": "/tmp/gh-personal",
+	}
+	results, err := a.ProbeAllProfiles(context.Background(), "org", "repo", profiles)
 
-func TestDetectRateLimitWarning(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: gh api response with X-RateLimit-Remaining < 10
-	// When: response is processed
-	// Then: rate limit warning is flagged
+	require.NoError(t, err)
+	assert.Len(t, results, 2)
 }
 
 func TestDetectEnvTokenInterference(t *testing.T) {
-	t.Skip("not implemented")
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	_, found := gh.DetectEnvTokenInterference()
+	assert.False(t, found)
 
-	// Given: GH_TOKEN environment variable is set
-	// When: DetectEnvTokenInterference is called
-	// Then: returns warning about env token overriding profile auth
+	t.Setenv("GH_TOKEN", "ghp_test123")
+	key, found := gh.DetectEnvTokenInterference()
+	assert.True(t, found)
+	assert.Equal(t, "GH_TOKEN", key)
 }
