@@ -68,6 +68,10 @@ func (m *mockFormRunner) RunOwnersSelect(detected []string) ([]string, error) {
 	return m.owners, nil
 }
 
+func (m *mockFormRunner) RunSSHKeySelect(existingKeys []SSHKeyInfo, profileName string) (SSHKeyChoice, error) {
+	return SSHKeyChoice{Action: "skip"}, nil
+}
+
 // registerDoctorCommands는 doctor.RunAll이 호출하는 명령어 응답을 등록한다.
 func registerDoctorCommands(fc *testutil.FakeCommander) {
 	fc.Register("git --version", "git version 2.40.0", nil)

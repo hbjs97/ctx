@@ -153,6 +153,12 @@ func (h *HuhFormRunner) RunSSHHostSelect(hosts []string) (string, error) {
 	return selected, nil
 }
 
+// RunSSHKeySelect는 SSH 키 선택 UI를 표시한다.
+// TODO: Task 6에서 구현 예정
+func (h *HuhFormRunner) RunSSHKeySelect(existingKeys []SSHKeyInfo, profileName string) (SSHKeyChoice, error) {
+	return SSHKeyChoice{Action: "skip"}, nil
+}
+
 // RunOwnersSelect는 owners 선택 UI를 표시한다.
 func (h *HuhFormRunner) RunOwnersSelect(detected []string) ([]string, error) {
 	if len(detected) == 0 {
