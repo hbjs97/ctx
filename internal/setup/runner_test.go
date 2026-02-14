@@ -68,6 +68,15 @@ func (m *mockFormRunner) RunOwnersSelect(detected []string) ([]string, error) {
 	return m.owners, nil
 }
 
+// registerDoctorCommands는 doctor.RunAll이 호출하는 명령어 응답을 등록한다.
+func registerDoctorCommands(fc *testutil.FakeCommander) {
+	fc.Register("git --version", "git version 2.40.0", nil)
+	fc.Register("gh --version", "gh version 2.40.0", nil)
+	fc.Register("ssh -V", "OpenSSH_9.0", nil)
+	fc.Register("gh auth status", "Logged in", nil)
+	fc.Register("ssh -T", "Hi user!", fmt.Errorf("exit status 1: Hi user!"))
+}
+
 func TestRunner_FirstRun_SingleProfile(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/config.toml"
@@ -76,6 +85,7 @@ func TestRunner_FirstRun_SingleProfile(t *testing.T) {
 	fc.Register("gh auth login --hostname github.com", "ok", nil)
 	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
 	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
 
 	mock := &mockFormRunner{
 		profileInputs: []*ProfileInput{{
@@ -111,6 +121,7 @@ func TestRunner_FirstRun_MultipleProfiles(t *testing.T) {
 	fc.Register("gh auth login --hostname github.com", "ok", nil)
 	fc.Register("gh api user/orgs --jq .[].login", "org1\n", nil)
 	fc.Register("gh api user --jq .login", "user1\n", nil)
+	registerDoctorCommands(fc)
 
 	mock := &mockFormRunner{
 		profileInputs: []*ProfileInput{
@@ -145,6 +156,7 @@ func TestRunner_Existing_AddProfile(t *testing.T) {
 	fc.Register("gh auth login --hostname github.com", "ok", nil)
 	fc.Register("gh api user/orgs --jq .[].login", "new-org\n", nil)
 	fc.Register("gh api user --jq .login", "newuser\n", nil)
+	registerDoctorCommands(fc)
 
 	mock := &mockFormRunner{
 		action: ActionAdd,
@@ -169,6 +181,7 @@ func TestRunner_Existing_EditProfile(t *testing.T) {
 	cfgPath := testutil.SetupTestProfiles(t)
 
 	fc := testutil.NewFakeCommander()
+	registerDoctorCommands(fc)
 
 	mock := &mockFormRunner{
 		action:          ActionEdit,
@@ -245,6 +258,7 @@ func TestRunner_FirstRun_GHAuthFails(t *testing.T) {
 	fc.Register("gh auth login --hostname github.com", "", fmt.Errorf("auth failed"))
 	fc.Register("gh api user/orgs --jq .[].login", "", fmt.Errorf("no auth"))
 	fc.Register("gh api user --jq .login", "", fmt.Errorf("no auth"))
+	registerDoctorCommands(fc)
 
 	mock := &mockFormRunner{
 		profileInputs: []*ProfileInput{{
@@ -267,4 +281,37 @@ func TestRunner_FirstRun_GHAuthFails(t *testing.T) {
 	cfg, err := config.Load(cfgPath)
 	require.NoError(t, err)
 	assert.Len(t, cfg.Profiles, 1)
+}
+
+func TestRunner_FirstRun_RunsDoctorAfterSetup(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("gh auth login --hostname github.com", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "work", GitName: "Test", GitEmail: "test@work.com",
+		}},
+		sshHost: "github.com-work",
+		owners:  []string{"my-org"},
+		addMore: []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:    cfgPath,
+		Commander:  fc,
+		FormRunner: mock,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// doctor 명령이 실행되었는지 확인
+	assert.True(t, fc.Called("git --version"))
+	assert.True(t, fc.Called("gh auth status"))
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
+	"github.com/hbjs97/ctx/internal/doctor"
 	"github.com/hbjs97/ctx/internal/gh"
 )
 
@@ -78,6 +79,7 @@ func (r *Runner) runFirstTime(ctx context.Context) error {
 		}
 	}
 
+	r.runDoctor(ctx, cfg)
 	return nil
 }
 
@@ -136,6 +138,27 @@ func (r *Runner) ghConfigDir(profileName string) string {
 	return filepath.Join(home, ".config", fmt.Sprintf("gh-%s", profileName))
 }
 
+// runDoctor는 설정 완료 후 환경 진단을 실행한다.
+func (r *Runner) runDoctor(ctx context.Context, cfg *config.Config) {
+	fmt.Println("\n환경 진단 실행 중...")
+	for name, p := range cfg.Profiles {
+		fmt.Printf("\n[%s] 프로필 진단:\n", name)
+		results := doctor.RunAll(ctx, r.Commander, p.GHConfigDir, p.SSHHost)
+		for _, res := range results {
+			icon := "✓"
+			if res.Status == doctor.StatusFail {
+				icon = "✗"
+			} else if res.Status == doctor.StatusWarn {
+				icon = "!"
+			}
+			fmt.Printf("  [%s] %s: %s\n", icon, res.Name, res.Message)
+			if res.Fix != "" {
+				fmt.Printf("      Fix: %s\n", res.Fix)
+			}
+		}
+	}
+}
+
 // runExisting는 기존 config가 있을 때의 CRUD 플로우다.
 func (r *Runner) runExisting(ctx context.Context) error {
 	cfg, err := config.Load(r.CfgPath)
@@ -185,7 +208,11 @@ func (r *Runner) addProfile(ctx context.Context, cfg *config.Config) error {
 		GitEmail:    profile.GitEmail,
 		Owners:      profile.Owners,
 	}
-	return config.Save(r.CfgPath, cfg)
+	if err := config.Save(r.CfgPath, cfg); err != nil {
+		return err
+	}
+	r.runDoctor(ctx, cfg)
+	return nil
 }
 
 // editProfile은 기존 프로필을 수정한다.
@@ -227,6 +254,7 @@ func (r *Runner) editProfile(ctx context.Context, cfg *config.Config, profileNam
 	}
 
 	fmt.Println("기존 리포에 반영하려면 ctx init --refresh를 실행하세요.")
+	r.runDoctor(ctx, cfg)
 	return nil
 }
 
