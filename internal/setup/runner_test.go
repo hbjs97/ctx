@@ -21,8 +21,9 @@ type mockFormRunner struct {
 	confirmIdx      int
 	addMore         []bool
 	addMoreIdx      int
-	sshHost         string
-	owners          []string
+	sshHost      string
+	sshKeyChoice SSHKeyChoice
+	owners       []string
 }
 
 func (m *mockFormRunner) RunProfileForm(defaults *ProfileInput, existingNames []string) (*ProfileInput, error) {
@@ -69,7 +70,7 @@ func (m *mockFormRunner) RunOwnersSelect(detected []string) ([]string, error) {
 }
 
 func (m *mockFormRunner) RunSSHKeySelect(existingKeys []SSHKeyInfo, profileName string) (SSHKeyChoice, error) {
-	return SSHKeyChoice{Action: "skip"}, nil
+	return m.sshKeyChoice, nil
 }
 
 // registerDoctorCommands는 doctor.RunAll이 호출하는 명령어 응답을 등록한다.

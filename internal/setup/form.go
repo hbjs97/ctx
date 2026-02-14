@@ -154,9 +154,45 @@ func (h *HuhFormRunner) RunSSHHostSelect(hosts []string) (string, error) {
 }
 
 // RunSSHKeySelect는 SSH 키 선택 UI를 표시한다.
-// TODO: Task 6에서 구현 예정
 func (h *HuhFormRunner) RunSSHKeySelect(existingKeys []SSHKeyInfo, profileName string) (SSHKeyChoice, error) {
-	return SSHKeyChoice{Action: "skip"}, nil
+	if len(existingKeys) == 0 {
+		var generate bool
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewConfirm().
+				Title("SSH 키가 없습니다. 새로 생성할까요?").
+				Description(fmt.Sprintf("~/.ssh/id_ed25519_%s 키 쌍을 생성합니다", profileName)).
+				Value(&generate),
+		))
+		if err := form.Run(); err != nil {
+			return SSHKeyChoice{}, fmt.Errorf("setup.RunSSHKeySelect: %w", err)
+		}
+		if generate {
+			return SSHKeyChoice{Action: "generate"}, nil
+		}
+		return SSHKeyChoice{Action: "skip"}, nil
+	}
+
+	options := make([]huh.Option[string], 0, len(existingKeys)+1)
+	for _, k := range existingKeys {
+		options = append(options, huh.NewOption(k.Name+" ("+k.PublicKey+")", k.PrivateKey))
+	}
+	options = append(options, huh.NewOption("새 키 생성 (id_ed25519_"+profileName+")", "__generate__"))
+
+	var selected string
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("SSH 키를 선택하세요").
+			Options(options...).
+			Value(&selected),
+	))
+	if err := form.Run(); err != nil {
+		return SSHKeyChoice{}, fmt.Errorf("setup.RunSSHKeySelect: %w", err)
+	}
+
+	if selected == "__generate__" {
+		return SSHKeyChoice{Action: "generate"}, nil
+	}
+	return SSHKeyChoice{Action: "existing", ExistingKey: selected}, nil
 }
 
 // RunOwnersSelect는 owners 선택 UI를 표시한다.
