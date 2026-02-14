@@ -30,8 +30,7 @@ type Profile struct {
 	SSHHost     string   `toml:"ssh_host"`
 	GitName     string   `toml:"git_name"`
 	GitEmail    string   `toml:"git_email"`
-	EmailDomain string   `toml:"email_domain"`
-	Owners      []string `toml:"owners"`
+	Owners []string `toml:"owners"`
 }
 
 // Load는 config.toml을 파싱하여 Config를 반환한다.

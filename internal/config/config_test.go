@@ -46,7 +46,6 @@ owners = ["testuser"]`
 	assert.Equal(t, "github-work", work.SSHHost)
 	assert.Equal(t, "Test User", work.GitName)
 	assert.Equal(t, "test@company.com", work.GitEmail)
-	assert.Equal(t, "company.com", work.EmailDomain)
 	assert.Equal(t, []string{"company-org", "company-team"}, work.Owners)
 }
 

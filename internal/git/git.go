@@ -13,7 +13,6 @@ import (
 type RepoRef struct {
 	Owner string
 	Repo  string
-	Host  string
 }
 
 // ParseRepoURL은 SSH/HTTPS/shorthand 형식의 리포 URL을 파싱한다.
@@ -40,7 +39,7 @@ func parseSSH(raw string) (RepoRef, error) {
 	if err != nil {
 		return RepoRef{}, err
 	}
-	return RepoRef{Owner: owner, Repo: repo, Host: parts[0]}, nil
+	return RepoRef{Owner: owner, Repo: repo}, nil
 }
 
 func parseHTTPS(raw string) (RepoRef, error) {
@@ -53,7 +52,7 @@ func parseHTTPS(raw string) (RepoRef, error) {
 	if err != nil {
 		return RepoRef{}, err
 	}
-	return RepoRef{Owner: owner, Repo: repo, Host: u.Host}, nil
+	return RepoRef{Owner: owner, Repo: repo}, nil
 }
 
 func parseShorthand(raw string) (RepoRef, error) {

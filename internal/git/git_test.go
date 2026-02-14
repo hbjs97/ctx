@@ -18,13 +18,13 @@ func TestParseRepoURL(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "ssh custom host", input: "git@github-company:company-org/api-server.git",
-			want: git.RepoRef{Owner: "company-org", Repo: "api-server", Host: "github-company"}},
+			want: git.RepoRef{Owner: "company-org", Repo: "api-server"}},
 		{name: "ssh github.com", input: "git@github.com:hbjs97/dotfiles.git",
-			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles", Host: "github.com"}},
+			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles"}},
 		{name: "https with .git", input: "https://github.com/hbjs97/dotfiles.git",
-			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles", Host: "github.com"}},
+			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles"}},
 		{name: "https without .git", input: "https://github.com/hbjs97/dotfiles",
-			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles", Host: "github.com"}},
+			want: git.RepoRef{Owner: "hbjs97", Repo: "dotfiles"}},
 		{name: "shorthand", input: "company-org/api-server",
 			want: git.RepoRef{Owner: "company-org", Repo: "api-server"}},
 		{name: "invalid single word", input: "not-a-url", wantErr: true},

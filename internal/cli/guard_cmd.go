@@ -65,6 +65,11 @@ func (a *App) runGuardCheck(cmd *cobra.Command) error {
 		return fmt.Errorf("cli.guard: %w", guard.ErrGuardBlock)
 	}
 
+	if result.Skipped {
+		fmt.Fprintln(os.Stderr, "guard 검사 건너뜀 (CTX_SKIP_GUARD=1)")
+		return nil
+	}
+
 	for _, v := range result.Violations {
 		if v.Severity == "warning" {
 			fmt.Fprintf(os.Stderr, "[경고] %s: 기대=%s, 실제=%s\n", v.Field, v.Expected, v.Actual)

@@ -20,8 +20,6 @@ const (
 	ExitAuthFail ExitCode = 4
 	// ExitConfigError는 설정 파일 오류다.
 	ExitConfigError ExitCode = 5
-	// ExitNoDependency는 필수 도구 미설치다.
-	ExitNoDependency ExitCode = 6
 )
 
 // MapExitCode는 sentinel error를 기반으로 적절한 종료 코드를 반환한다.

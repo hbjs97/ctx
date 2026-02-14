@@ -35,6 +35,11 @@ func (a *App) NewRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&a.CfgPath, "config", defaultCfg, "설정 파일 경로")
 	cmd.PersistentFlags().BoolVar(&a.Verbose, "verbose", false, "상세 출력")
 
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		a.verboseLog("config: %s", a.CfgPath)
+		return nil
+	}
+
 	cmd.AddCommand(
 		a.newCloneCmd(),
 		a.newInitCmd(),
@@ -50,6 +55,14 @@ func (a *App) NewRootCmd() *cobra.Command {
 // NewRootCmd는 ctx CLI의 루트 명령을 생성한다. (하위 호환용 free function)
 func NewRootCmd() *cobra.Command {
 	return NewApp().NewRootCmd()
+}
+
+// verboseLog는 Verbose 모드일 때 stderr에 마스킹된 메시지를 출력한다.
+func (a *App) verboseLog(format string, args ...interface{}) {
+	if a.Verbose {
+		msg := fmt.Sprintf(format, args...)
+		fmt.Fprintln(os.Stderr, MaskTokens(msg))
+	}
 }
 
 func homeDir() string {

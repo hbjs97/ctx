@@ -106,8 +106,3 @@ func (c *FakeCommander) CallCount(prefix string) int {
 	}
 	return count
 }
-
-// Reset clears all recorded calls.
-func (c *FakeCommander) Reset() {
-	c.Calls = nil
-}
