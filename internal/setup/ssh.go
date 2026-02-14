@@ -55,6 +55,46 @@ func ParseSSHConfig(path string) []string {
 	return hosts
 }
 
+// ParseSSHConfigIdentityFiles는 SSH config 파일에서 Host → IdentityFile 매핑을 추출한다.
+// 모든 Host 블록을 파싱하며, IdentityFile이 없는 블록은 무시한다.
+func ParseSSHConfigIdentityFiles(path string) map[string]string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	result := make(map[string]string)
+	var currentHost string
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		if strings.HasPrefix(line, "Host ") && !strings.Contains(line, "*") {
+			currentHost = strings.TrimSpace(strings.TrimPrefix(line, "Host "))
+		}
+
+		if currentHost != "" && strings.HasPrefix(line, "IdentityFile") {
+			idFile := strings.TrimSpace(strings.TrimPrefix(line, "IdentityFile"))
+			result[currentHost] = idFile
+		}
+	}
+
+	return result
+}
+
+// FilterUsedSSHKeys는 이미 다른 프로필에서 사용 중인 키를 제외한다.
+func FilterUsedSSHKeys(keys []SSHKeyInfo, usedPaths map[string]bool) []SSHKeyInfo {
+	var filtered []SSHKeyInfo
+	for _, k := range keys {
+		if !usedPaths[k.PrivateKey] {
+			filtered = append(filtered, k)
+		}
+	}
+	return filtered
+}
+
 // DetectSSHKeys는 주어진 디렉토리에서 SSH 키 쌍을 감지한다.
 // id_* 패턴의 비밀키 파일과 대응하는 .pub 파일이 모두 존재해야 유효한 키 쌍이다.
 func DetectSSHKeys(sshDir string) []SSHKeyInfo {

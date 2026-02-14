@@ -209,6 +209,77 @@ func TestWriteSSHConfigEntry_AppendsToExisting(t *testing.T) {
 	}
 }
 
+func TestParseSSHConfigIdentityFiles_MapsHostToKey(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	content := `Host github.com-work
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_work
+
+Host github.com-personal
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_personal
+
+Host other-server
+  HostName example.com
+  IdentityFile ~/.ssh/id_rsa
+`
+	os.WriteFile(configPath, []byte(content), 0600)
+
+	m := ParseSSHConfigIdentityFiles(configPath)
+	if m["github.com-work"] != "~/.ssh/id_ed25519_work" {
+		t.Errorf("expected work key, got %q", m["github.com-work"])
+	}
+	if m["github.com-personal"] != "~/.ssh/id_ed25519_personal" {
+		t.Errorf("expected personal key, got %q", m["github.com-personal"])
+	}
+	if m["other-server"] != "~/.ssh/id_rsa" {
+		t.Errorf("expected other key, got %q", m["other-server"])
+	}
+}
+
+func TestParseSSHConfigIdentityFiles_NoFile(t *testing.T) {
+	m := ParseSSHConfigIdentityFiles("/nonexistent/path")
+	if len(m) != 0 {
+		t.Errorf("expected empty map, got %v", m)
+	}
+}
+
+func TestFilterUsedSSHKeys_RemovesUsedKeys(t *testing.T) {
+	allKeys := []SSHKeyInfo{
+		{Name: "id_ed25519_personal", PrivateKey: "/home/u/.ssh/id_ed25519_personal"},
+		{Name: "id_ed25519_work", PrivateKey: "/home/u/.ssh/id_ed25519_work"},
+		{Name: "id_ed25519", PrivateKey: "/home/u/.ssh/id_ed25519"},
+	}
+	usedPaths := map[string]bool{
+		"/home/u/.ssh/id_ed25519_personal": true,
+	}
+
+	filtered := FilterUsedSSHKeys(allKeys, usedPaths)
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2, got %d", len(filtered))
+	}
+	if filtered[0].Name != "id_ed25519_work" {
+		t.Errorf("expected id_ed25519_work, got %s", filtered[0].Name)
+	}
+}
+
+func TestFilterUsedSSHKeys_AllUsed(t *testing.T) {
+	allKeys := []SSHKeyInfo{
+		{Name: "id_ed25519", PrivateKey: "/home/u/.ssh/id_ed25519"},
+	}
+	usedPaths := map[string]bool{
+		"/home/u/.ssh/id_ed25519": true,
+	}
+
+	filtered := FilterUsedSSHKeys(allKeys, usedPaths)
+	if len(filtered) != 0 {
+		t.Fatalf("expected 0, got %d", len(filtered))
+	}
+}
+
 func TestWriteSSHConfigEntry_SkipsDuplicate(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config")

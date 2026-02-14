@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
@@ -106,19 +107,22 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 		return nil, err
 	}
 
-	// SSH 키 감지 + 선택/생성
+	// SSH 키 감지 + 사용 중인 키 필터링
 	sshDirPath := r.sshDir()
-	existingKeys := DetectSSHKeys(sshDirPath)
-	keyChoice, err := r.FormRunner.RunSSHKeySelect(existingKeys, input.Name)
+	sshConfigPath := r.SSHConfigPath
+	if sshConfigPath == "" {
+		sshConfigPath = DefaultSSHConfigPath()
+	}
+
+	allKeys := DetectSSHKeys(sshDirPath)
+	usedPaths := r.usedIdentityFiles(cfg, sshConfigPath)
+	availableKeys := FilterUsedSSHKeys(allKeys, usedPaths)
+	keyChoice, err := r.FormRunner.RunSSHKeySelect(availableKeys, input.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	var identityFile string
-	sshConfigPath := r.SSHConfigPath
-	if sshConfigPath == "" {
-		sshConfigPath = DefaultSSHConfigPath()
-	}
 
 	switch keyChoice.Action {
 	case "generate":
@@ -178,6 +182,25 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 	input.Owners = owners
 
 	return input, nil
+}
+
+// usedIdentityFiles는 기존 프로필들이 사용 중인 SSH IdentityFile 경로를 수집한다.
+func (r *Runner) usedIdentityFiles(cfg *config.Config, sshConfigPath string) map[string]bool {
+	hostToKey := ParseSSHConfigIdentityFiles(sshConfigPath)
+	used := make(map[string]bool)
+	for _, p := range cfg.Profiles {
+		if idFile, ok := hostToKey[p.SSHHost]; ok {
+			// ~ 경로를 절대 경로로 확장
+			if strings.HasPrefix(idFile, "~/") {
+				home, err := os.UserHomeDir()
+				if err == nil {
+					idFile = filepath.Join(home, idFile[2:])
+				}
+			}
+			used[idFile] = true
+		}
+	}
+	return used
 }
 
 func (r *Runner) ghConfigDir(profileName string) string {
