@@ -160,3 +160,68 @@ func TestGenerateSSHKey_Failure(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestWriteSSHConfigEntry_NewFile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+
+	err := WriteSSHConfigEntry(configPath, "github.com-work", "~/.ssh/id_ed25519_work")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(configPath)
+	s := string(content)
+	if !strings.Contains(s, "Host github.com-work") {
+		t.Error("missing Host line")
+	}
+	if !strings.Contains(s, "HostName github.com") {
+		t.Error("missing HostName line")
+	}
+	if !strings.Contains(s, "User git") {
+		t.Error("missing User line")
+	}
+	if !strings.Contains(s, "IdentityFile ~/.ssh/id_ed25519_work") {
+		t.Error("missing IdentityFile line")
+	}
+	if !strings.Contains(s, "IdentitiesOnly yes") {
+		t.Error("missing IdentitiesOnly line")
+	}
+}
+
+func TestWriteSSHConfigEntry_AppendsToExisting(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	os.WriteFile(configPath, []byte("Host existing\n  HostName example.com\n"), 0600)
+
+	err := WriteSSHConfigEntry(configPath, "github.com-personal", "~/.ssh/id_ed25519_personal")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(configPath)
+	s := string(content)
+	if !strings.Contains(s, "Host existing") {
+		t.Error("existing entry was lost")
+	}
+	if !strings.Contains(s, "Host github.com-personal") {
+		t.Error("new entry not appended")
+	}
+}
+
+func TestWriteSSHConfigEntry_SkipsDuplicate(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config")
+	existing := "Host github.com-work\n  HostName github.com\n  User git\n  IdentityFile ~/.ssh/id_ed25519_work\n"
+	os.WriteFile(configPath, []byte(existing), 0600)
+
+	err := WriteSSHConfigEntry(configPath, "github.com-work", "~/.ssh/id_ed25519_work")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(configPath)
+	if count := strings.Count(string(content), "Host github.com-work"); count != 1 {
+		t.Errorf("expected 1 occurrence, got %d", count)
+	}
+}

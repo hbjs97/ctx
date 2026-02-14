@@ -91,6 +91,29 @@ func DefaultSSHConfigPath() string {
 	return filepath.Join(home, ".ssh", "config")
 }
 
+// WriteSSHConfigEntry는 SSH config 파일에 GitHub Host alias 블록을 추가한다.
+// 동일한 Host가 이미 존재하면 스킵한다. 파일이 없으면 생성한다.
+func WriteSSHConfigEntry(configPath, host, identityFile string) error {
+	existing, _ := os.ReadFile(configPath)
+	hostLine := "Host " + host
+	if strings.Contains(string(existing), hostLine) {
+		return nil // 이미 존재
+	}
+
+	entry := fmt.Sprintf("\nHost %s\n  HostName github.com\n  User git\n  IdentityFile %s\n  IdentitiesOnly yes\n", host, identityFile)
+
+	f, err := os.OpenFile(configPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("setup.WriteSSHConfigEntry: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(entry); err != nil {
+		return fmt.Errorf("setup.WriteSSHConfigEntry: %w", err)
+	}
+	return nil
+}
+
 // GenerateSSHKey는 ssh-keygen으로 ed25519 키 쌍을 생성한다.
 // 빈 passphrase로 생성하며, Commander를 통해 실행한다.
 func GenerateSSHKey(ctx context.Context, cmd cmdexec.Commander, email, keyPath string) error {
