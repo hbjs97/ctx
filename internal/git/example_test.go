@@ -1,9 +1,11 @@
 package git_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hbjs97/ctx/internal/git"
+	"github.com/hbjs97/ctx/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,4 +63,48 @@ func TestIsHTTPSRemote(t *testing.T) {
 			assert.Equal(t, tt.want, git.IsHTTPSRemote(tt.input))
 		})
 	}
+}
+
+func TestAdapter_Clone(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git clone", "", nil)
+
+	a := git.NewAdapter(fake)
+	err := a.Clone(context.Background(), "git@host:o/r.git", "/tmp/dest")
+
+	assert.NoError(t, err)
+	assert.True(t, fake.Called("git clone"))
+}
+
+func TestAdapter_SetLocalConfig(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git -C", "", nil)
+
+	a := git.NewAdapter(fake)
+	err := a.SetLocalConfig(context.Background(), "/tmp/repo", "user.name", "Test")
+
+	assert.NoError(t, err)
+	assert.True(t, fake.Called("git -C"))
+}
+
+func TestAdapter_GetRemoteURL(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git -C", "git@github-work:org/repo.git\n", nil)
+
+	a := git.NewAdapter(fake)
+	u, err := a.GetRemoteURL(context.Background(), "/tmp/repo", "origin")
+
+	require.NoError(t, err)
+	assert.Equal(t, "git@github-work:org/repo.git", u)
+}
+
+func TestAdapter_SetRemoteURL(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git -C", "", nil)
+
+	a := git.NewAdapter(fake)
+	err := a.SetRemoteURL(context.Background(), "/tmp/repo", "origin", "git@new:o/r.git")
+
+	assert.NoError(t, err)
+	assert.True(t, fake.Called("git -C"))
 }
