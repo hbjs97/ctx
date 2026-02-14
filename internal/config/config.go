@@ -1,10 +1,12 @@
 package config
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/BurntSushi/toml"
@@ -48,6 +50,23 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// Save는 Config를 TOML 형식으로 파일에 저장한다.
+func Save(path string, cfg *Config) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("config.Save: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
+		return fmt.Errorf("config.Save: %w", err)
+	}
+
+	if err := os.WriteFile(path, buf.Bytes(), 0600); err != nil {
+		return fmt.Errorf("config.Save: %w", err)
+	}
+	return nil
 }
 
 // IsPromptOnAmbiguous는 prompt_on_ambiguous 설정값을 반환한다.
