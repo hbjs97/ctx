@@ -16,6 +16,10 @@ type Commander interface {
 
 	// RunWithEnv는 추가 환경변수를 현재 프로세스 환경에 병합하여 외부 명령을 실행한다.
 	RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error)
+
+	// RunInteractiveWithEnv는 터미널 stdin/stdout/stderr를 직접 연결하여 대화형 명령을 실행한다.
+	// gh auth login 등 사용자 입력이 필요한 명령에 사용한다.
+	RunInteractiveWithEnv(ctx context.Context, env map[string]string, name string, args ...string) error
 }
 
 // RealCommander는 os/exec를 통해 실제 외부 명령을 실행한다.
@@ -31,6 +35,16 @@ func (c *RealCommander) RunWithEnv(ctx context.Context, env map[string]string, n
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), mapToEnvSlice(env)...)
 	return cmd.CombinedOutput()
+}
+
+// RunInteractiveWithEnv는 터미널에 직접 연결하여 대화형 명령을 실행한다.
+func (c *RealCommander) RunInteractiveWithEnv(ctx context.Context, env map[string]string, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), mapToEnvSlice(env)...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // mapToEnvSlice는 환경변수 맵을 "KEY=VALUE" 문자열 슬라이스로 변환한다.

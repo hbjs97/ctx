@@ -102,7 +102,7 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 
 	env := gh.SuppressEnvTokens()
 	env["GH_CONFIG_DIR"] = ghDir
-	_, err = r.Commander.RunWithEnv(ctx, env, "gh", "auth", "login", "--hostname", "github.com")
+	err = r.Commander.RunInteractiveWithEnv(ctx, env, "gh", "auth", "login", "--hostname", "github.com")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "경고: gh 인증 실패 — 나중에 직접 인증하세요\n")
 	}

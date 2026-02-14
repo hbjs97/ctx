@@ -86,6 +86,14 @@ func (c *FakeCommander) RunWithEnv(ctx context.Context, env map[string]string, n
 	return c.Run(ctx, name, args...)
 }
 
+// RunInteractiveWithEnv는 대화형 명령 실행을 시뮬레이션한다.
+// 테스트에서는 Run과 동일하게 동작하며 출력은 무시한다.
+func (c *FakeCommander) RunInteractiveWithEnv(ctx context.Context, env map[string]string, name string, args ...string) error {
+	c.EnvCalls = append(c.EnvCalls, env)
+	_, err := c.Run(ctx, name, args...)
+	return err
+}
+
 // Called는 주어진 prefix와 매칭되는 명령이 실행되었으면 true를 반환한다.
 func (c *FakeCommander) Called(prefix string) bool {
 	for _, call := range c.Calls {
