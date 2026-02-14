@@ -36,6 +36,6 @@ Thumbs.db
 # Claude Code / OMC (session state, auto-generated)
 .omc/
 .claude/settings.json
-# claude-mem auto-generated files in subdirectories
-internal/**/CLAUDE.md
-.claude/rules/CLAUDE.md
+# claude-mem auto-generated files (root CLAUDE.md is tracked)
+**/CLAUDE.md
+!/CLAUDE.md
