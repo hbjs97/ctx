@@ -2,6 +2,7 @@ package guard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,11 +12,18 @@ import (
 	"github.com/hbjs97/ctx/internal/config"
 )
 
+// ErrGuardBlock는 guard 검사 실패로 push가 차단될 때 반환된다.
+var ErrGuardBlock = errors.New("guard 검사 실패 — push 차단")
+
 const (
 	hookStartMarker = "# ctx-guard-start"
 	hookEndMarker   = "# ctx-guard-end"
 	hookScript      = `# ctx-guard-start
 # Installed by ctx — do not edit this block manually.
+if ! command -v ctx >/dev/null 2>&1; then
+  echo "ctx: command not found — skipping guard check" >&2
+  exit 0
+fi
 ctx guard check || exit 1
 # ctx-guard-end`
 )
@@ -23,6 +31,7 @@ ctx guard check || exit 1
 // CheckResult는 guard 검사 결과다.
 type CheckResult struct {
 	Pass       bool
+	Skipped    bool
 	Violations []Violation
 }
 
@@ -38,7 +47,8 @@ type Violation struct {
 func Check(ctx context.Context, repoDir string, profile *config.Profile, cmd cmdexec.Commander) (*CheckResult, error) {
 	// CTX_SKIP_GUARD 환경변수로 우회
 	if os.Getenv("CTX_SKIP_GUARD") == "1" {
-		return &CheckResult{Pass: true}, nil
+		fmt.Fprintln(os.Stderr, "경고: CTX_SKIP_GUARD=1 — guard 검사를 건너뜁니다")
+		return &CheckResult{Pass: true, Skipped: true}, nil
 	}
 
 	result := &CheckResult{Pass: true}

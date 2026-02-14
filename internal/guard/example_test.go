@@ -96,10 +96,30 @@ func TestInstallHook_NoExisting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "# ctx-guard-start")
 	assert.Contains(t, string(data), "# ctx-guard-end")
+	assert.Contains(t, string(data), "command -v ctx")
 	assert.Contains(t, string(data), "ctx guard check")
 
 	info, _ := os.Stat(hookPath)
 	assert.True(t, info.Mode()&0111 != 0, "hook should be executable")
+}
+
+func TestInstallHook_ContainsPathCheck(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	gitDir := filepath.Join(dir, ".git", "hooks")
+	require.NoError(t, os.MkdirAll(gitDir, 0755))
+
+	err := guard.InstallHook(dir)
+	require.NoError(t, err)
+
+	hookPath := filepath.Join(gitDir, "pre-push")
+	data, err := os.ReadFile(hookPath)
+	require.NoError(t, err)
+	content := string(data)
+	assert.Contains(t, content, "command -v ctx")
+	assert.Contains(t, content, "ctx guard check || exit 1")
+	assert.Contains(t, content, "ctx-guard-start")
+	assert.Contains(t, content, "ctx-guard-end")
 }
 
 func TestInstallHook_ExistingHook(t *testing.T) {
