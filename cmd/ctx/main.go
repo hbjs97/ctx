@@ -1,11 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/hbjs97/ctx/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "ctx: not yet implemented")
-	os.Exit(1)
+	cmd := cli.NewRootCmd()
+	if err := cmd.Execute(); err != nil {
+		os.Exit(int(cli.MapExitCode(err)))
+	}
 }
