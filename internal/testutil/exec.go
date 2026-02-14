@@ -3,23 +3,8 @@ package testutil
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
-
-// Commander abstracts external command execution for testability.
-type Commander interface {
-	// Run executes an external command and returns its combined output.
-	Run(ctx context.Context, name string, args ...string) ([]byte, error)
-}
-
-// RealCommander executes actual external commands.
-type RealCommander struct{}
-
-// Run executes the command using os/exec.
-func (c *RealCommander) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
-}
 
 // Response represents a pre-configured command response for FakeCommander.
 type Response struct {
@@ -37,6 +22,9 @@ type FakeCommander struct {
 
 	// Calls records all commands that were executed, in order.
 	Calls []string
+
+	// EnvCalls records the environment variable maps passed to RunWithEnv, in order.
+	EnvCalls []map[string]string
 
 	// DefaultResponse is returned when no matching response is found.
 	// If nil, an error is returned for unmatched commands.
@@ -90,6 +78,12 @@ func (c *FakeCommander) Run(_ context.Context, name string, args ...string) ([]b
 	}
 
 	return nil, fmt.Errorf("FakeCommander: no response registered for %q", fullCmd)
+}
+
+// RunWithEnv records the environment variables and delegates to Run logic.
+func (c *FakeCommander) RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error) {
+	c.EnvCalls = append(c.EnvCalls, env)
+	return c.Run(ctx, name, args...)
 }
 
 // Called returns true if a command matching the given prefix was executed.
