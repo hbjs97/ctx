@@ -3,6 +3,7 @@ package setup
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hbjs97/ctx/internal/config"
@@ -319,4 +320,153 @@ func TestRunner_FirstRun_RunsDoctorAfterSetup(t *testing.T) {
 	// doctor 명령이 실행되었는지 확인
 	assert.True(t, fc.Called("git --version"))
 	assert.True(t, fc.Called("gh auth status"))
+}
+
+func TestRunner_FirstRun_SSHKeyGenerate(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	sshDir := dir + "/ssh"
+	sshConfigPath := dir + "/ssh/config"
+	require.NoError(t, os.MkdirAll(sshDir, 0700))
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh-keygen", "", nil)
+	fc.Register("gh auth login --hostname github.com", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "work", GitName: "Test", GitEmail: "test@work.com",
+		}},
+		sshKeyChoice: SSHKeyChoice{Action: "generate"},
+		owners:       []string{"my-org"},
+		addMore:      []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:       cfgPath,
+		Commander:     fc,
+		FormRunner:    mock,
+		SSHDir:        sshDir,
+		SSHConfigPath: sshConfigPath,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// ssh-keygen이 호출되었는지 확인
+	assert.True(t, fc.Called("ssh-keygen"))
+
+	// SSH config에 엔트리가 작성되었는지 확인
+	sshCfgData, err := os.ReadFile(sshConfigPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(sshCfgData), "Host github.com-work")
+	assert.Contains(t, string(sshCfgData), "IdentityFile "+sshDir+"/id_ed25519_work")
+
+	// config.toml에 SSHHost가 자동 결정되었는지 확인
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "github.com-work", cfg.Profiles["work"].SSHHost)
+}
+
+func TestRunner_FirstRun_SSHKeyExisting(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	sshDir := dir + "/ssh"
+	sshConfigPath := dir + "/ssh/config"
+	require.NoError(t, os.MkdirAll(sshDir, 0700))
+
+	// 기존 SSH 키 쌍 생성
+	existingKeyPath := sshDir + "/id_ed25519_old"
+	require.NoError(t, os.WriteFile(existingKeyPath, []byte("private"), 0600))
+	require.NoError(t, os.WriteFile(existingKeyPath+".pub", []byte("public"), 0644))
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("gh auth login --hostname github.com", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "personal", GitName: "Me", GitEmail: "me@example.com",
+		}},
+		sshKeyChoice: SSHKeyChoice{Action: "existing", ExistingKey: existingKeyPath},
+		owners:       []string{"myuser"},
+		addMore:      []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:       cfgPath,
+		Commander:     fc,
+		FormRunner:    mock,
+		SSHDir:        sshDir,
+		SSHConfigPath: sshConfigPath,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// ssh-keygen이 호출되지 않았는지 확인
+	assert.False(t, fc.Called("ssh-keygen"))
+
+	// SSH config에 엔트리가 작성되었는지 확인
+	sshCfgData, err := os.ReadFile(sshConfigPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(sshCfgData), "Host github.com-personal")
+	assert.Contains(t, string(sshCfgData), "IdentityFile "+existingKeyPath)
+
+	// config.toml에 SSHHost가 자동 결정되었는지 확인
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "github.com-personal", cfg.Profiles["personal"].SSHHost)
+}
+
+func TestRunner_FirstRun_SSHKeySkip(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	sshDir := dir + "/ssh"
+	sshConfigPath := dir + "/ssh/config"
+	require.NoError(t, os.MkdirAll(sshDir, 0700))
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("gh auth login --hostname github.com", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "work", GitName: "Test", GitEmail: "test@work.com",
+		}},
+		sshKeyChoice: SSHKeyChoice{Action: "skip"},
+		sshHost:      "github.com-manual",
+		owners:       []string{"my-org"},
+		addMore:      []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:       cfgPath,
+		Commander:     fc,
+		FormRunner:    mock,
+		SSHDir:        sshDir,
+		SSHConfigPath: sshConfigPath,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// ssh-keygen이 호출되지 않았는지 확인
+	assert.False(t, fc.Called("ssh-keygen"))
+
+	// SSH config 파일이 생성되지 않았는지 확인 (skip이므로)
+	_, err = os.Stat(sshConfigPath)
+	assert.True(t, os.IsNotExist(err))
+
+	// RunSSHHostSelect로 fallback하여 수동 입력된 호스트 사용 확인
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "github.com-manual", cfg.Profiles["work"].SSHHost)
 }

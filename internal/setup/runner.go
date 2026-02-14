@@ -19,6 +19,7 @@ type Runner struct {
 	Commander     cmdexec.Commander
 	FormRunner    FormRunner
 	SSHConfigPath string // 테스트용. 비어있으면 기본 경로.
+	SSHDir        string // 테스트용. 비어있으면 ~/.ssh.
 }
 
 // Run은 setup 플로우를 실행한다.
@@ -83,6 +84,17 @@ func (r *Runner) runFirstTime(ctx context.Context) error {
 	return nil
 }
 
+func (r *Runner) sshDir() string {
+	if r.SSHDir != "" {
+		return r.SSHDir
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".ssh")
+}
+
 func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, defaults *ProfileInput) (*ProfileInput, error) {
 	existingNames := make([]string, 0, len(cfg.Profiles))
 	for name := range cfg.Profiles {
@@ -92,6 +104,51 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 	input, err := r.FormRunner.RunProfileForm(defaults, existingNames)
 	if err != nil {
 		return nil, err
+	}
+
+	// SSH 키 감지 + 선택/생성
+	sshDirPath := r.sshDir()
+	existingKeys := DetectSSHKeys(sshDirPath)
+	keyChoice, err := r.FormRunner.RunSSHKeySelect(existingKeys, input.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	var identityFile string
+	sshConfigPath := r.SSHConfigPath
+	if sshConfigPath == "" {
+		sshConfigPath = DefaultSSHConfigPath()
+	}
+
+	switch keyChoice.Action {
+	case "generate":
+		keyPath := filepath.Join(sshDirPath, fmt.Sprintf("id_ed25519_%s", input.Name))
+		if err := GenerateSSHKey(ctx, r.Commander, input.GitEmail, keyPath); err != nil {
+			return nil, err
+		}
+		identityFile = keyPath
+		// SSH config에 Host 엔트리 자동 추가
+		sshHost := fmt.Sprintf("github.com-%s", input.Name)
+		if err := WriteSSHConfigEntry(sshConfigPath, sshHost, identityFile); err != nil {
+			return nil, err
+		}
+		input.SSHHost = sshHost
+	case "existing":
+		identityFile = keyChoice.ExistingKey
+		// SSH config에 Host 엔트리 자동 추가
+		sshHost := fmt.Sprintf("github.com-%s", input.Name)
+		if err := WriteSSHConfigEntry(sshConfigPath, sshHost, identityFile); err != nil {
+			return nil, err
+		}
+		input.SSHHost = sshHost
+	default:
+		// "skip" — 기존 SSH host 선택 플로우로 fallback
+		hosts := ParseSSHConfig(sshConfigPath)
+		sshHost, err := r.FormRunner.RunSSHHostSelect(hosts)
+		if err != nil {
+			return nil, err
+		}
+		input.SSHHost = sshHost
 	}
 
 	// gh auth login 실행
@@ -106,18 +163,6 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "경고: gh 인증 실패 — 나중에 직접 인증하세요\n")
 	}
-
-	// SSH host 감지 + 선택
-	sshPath := r.SSHConfigPath
-	if sshPath == "" {
-		sshPath = DefaultSSHConfigPath()
-	}
-	hosts := ParseSSHConfig(sshPath)
-	sshHost, err := r.FormRunner.RunSSHHostSelect(hosts)
-	if err != nil {
-		return nil, err
-	}
-	input.SSHHost = sshHost
 
 	// 조직 조회 + 선택
 	detected := DetectOrgs(ctx, r.Commander, ghDir)
