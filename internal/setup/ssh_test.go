@@ -1,10 +1,14 @@
 package setup
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/hbjs97/ctx/internal/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -116,5 +120,43 @@ func TestDetectSSHKeys_MultipleKeys(t *testing.T) {
 	keys := DetectSSHKeys(dir)
 	if len(keys) != 2 {
 		t.Fatalf("expected 2 key pairs, got %d", len(keys))
+	}
+}
+
+func TestGenerateSSHKey_Success(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh-keygen", "", nil)
+
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "id_ed25519_test")
+
+	err := GenerateSSHKey(context.Background(), fc, "test@example.com", keyPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !fc.Called("ssh-keygen") {
+		t.Fatal("ssh-keygen was not called")
+	}
+
+	call := fc.Calls[0]
+	if !strings.Contains(call, "-t ed25519") {
+		t.Errorf("expected -t ed25519 in command, got: %s", call)
+	}
+	if !strings.Contains(call, "-C test@example.com") {
+		t.Errorf("expected -C email in command, got: %s", call)
+	}
+	if !strings.Contains(call, "-f "+keyPath) {
+		t.Errorf("expected -f keyPath in command, got: %s", call)
+	}
+}
+
+func TestGenerateSSHKey_Failure(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh-keygen", "error output", fmt.Errorf("exit status 1"))
+
+	err := GenerateSSHKey(context.Background(), fc, "test@example.com", "/tmp/key")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }

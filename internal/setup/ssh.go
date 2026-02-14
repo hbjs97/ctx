@@ -2,9 +2,13 @@ package setup
 
 import (
 	"bufio"
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/hbjs97/ctx/internal/cmdexec"
 )
 
 // ParseSSHConfig는 SSH config 파일에서 GitHub 관련 Host alias 목록을 추출한다.
@@ -85,4 +89,14 @@ func DefaultSSHConfigPath() string {
 		return ""
 	}
 	return filepath.Join(home, ".ssh", "config")
+}
+
+// GenerateSSHKey는 ssh-keygen으로 ed25519 키 쌍을 생성한다.
+// 빈 passphrase로 생성하며, Commander를 통해 실행한다.
+func GenerateSSHKey(ctx context.Context, cmd cmdexec.Commander, email, keyPath string) error {
+	_, err := cmd.Run(ctx, "ssh-keygen", "-t", "ed25519", "-C", email, "-f", keyPath, "-N", "")
+	if err != nil {
+		return fmt.Errorf("setup.GenerateSSHKey: %w", err)
+	}
+	return nil
 }
