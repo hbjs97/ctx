@@ -1,109 +1,186 @@
 package resolver_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
+	"time"
+
+	"github.com/hbjs97/ctx/internal/cache"
+	"github.com/hbjs97/ctx/internal/config"
+	"github.com/hbjs97/ctx/internal/gh"
+	"github.com/hbjs97/ctx/internal/git"
+	"github.com/hbjs97/ctx/internal/resolver"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+func testConfig() *config.Config {
+	return &config.Config{
+		CacheTTLDays: 90,
+		Profiles: map[string]config.Profile{
+			"work": {
+				GHConfigDir: "/tmp/gh-work", SSHHost: "github-work",
+				GitName: "W", GitEmail: "w@co.com", Owners: []string{"company-org"},
+			},
+			"personal": {
+				GHConfigDir: "/tmp/gh-personal", SSHHost: "github-personal",
+				GitName: "P", GitEmail: "p@me.com", Owners: []string{"hbjs97"},
+			},
+		},
+	}
+}
+
+// Step 1: Explicit flag
 func TestResolve_ExplicitFlag(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: --profile work flag is set
-	// When: Resolve is called
-	// Then: returns "work" profile immediately (Step 1)
-	// And: no cache lookup or probe is performed
+	result, err := r.Resolve(context.Background(), "any/repo", "work")
+	require.NoError(t, err)
+	assert.Equal(t, "work", result.Profile)
+	assert.Equal(t, "explicit", result.Reason)
 }
 
-func TestResolve_ExplicitFlag_InvalidProfile(t *testing.T) {
-	t.Skip("not implemented")
+func TestResolve_ExplicitFlag_NotExists(t *testing.T) {
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: --profile nonexistent flag is set
-	// When: Resolve is called
-	// Then: returns error with exit code 5
+	_, err := r.Resolve(context.Background(), "any/repo", "nonexist")
+	assert.Error(t, err)
 }
 
+// Step 2: Cache
 func TestResolve_CacheHit(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	c := cache.New()
+	c.Set("company-org/api", cache.Entry{
+		Profile: "work", Reason: "owner_rule",
+		ResolvedAt: time.Now().Format(time.RFC3339), ConfigHash: cfg.ConfigHash(),
+	})
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: cache contains "company-org/api-server" -> "work", TTL valid, config_hash matches
-	// When: Resolve("company-org/api-server") is called without --profile
-	// Then: returns "work" from cache (Step 2)
+	result, err := r.Resolve(context.Background(), "company-org/api", "")
+	require.NoError(t, err)
+	assert.Equal(t, "work", result.Profile)
+	assert.Equal(t, "cache", result.Reason)
 }
 
 func TestResolve_CacheTTLExpired(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	c := cache.New()
+	c.Set("company-org/api", cache.Entry{
+		Profile: "work", Reason: "owner_rule",
+		ResolvedAt: time.Now().Add(-91 * 24 * time.Hour).Format(time.RFC3339),
+		ConfigHash: cfg.ConfigHash(),
+	})
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: cache entry exists but TTL has expired (>90 days)
-	// When: Resolve is called
-	// Then: cache miss, falls through to Step 3 (owner rule)
+	result, err := r.Resolve(context.Background(), "company-org/api", "")
+	require.NoError(t, err)
+	assert.Equal(t, "owner_rule", result.Reason)
 }
 
 func TestResolve_CacheHashMismatch(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	c := cache.New()
+	c.Set("company-org/api", cache.Entry{
+		Profile: "work", Reason: "owner_rule",
+		ResolvedAt: time.Now().Format(time.RFC3339), ConfigHash: "stale_hash",
+	})
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: cache entry exists but config_hash doesn't match current config
-	// When: Resolve is called
-	// Then: cache invalidated, falls through to Step 3
+	result, err := r.Resolve(context.Background(), "company-org/api", "")
+	require.NoError(t, err)
+	assert.Equal(t, "owner_rule", result.Reason)
 }
 
+// Step 3: Owner rule
 func TestResolve_OwnerRuleSingleMatch(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: repo owner "company-org" matches only "work" profile's owners
-	// When: Resolve is called (no cache)
-	// Then: returns "work" (Step 3)
+	result, err := r.Resolve(context.Background(), "company-org/api", "")
+	require.NoError(t, err)
+	assert.Equal(t, "work", result.Profile)
+	assert.Equal(t, "owner_rule", result.Reason)
 }
 
 func TestResolve_OwnerRuleNoMatch(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: repo owner "unknown-org" matches no profile
-	// When: Resolve is called
-	// Then: falls through to Step 4 (probe)
+	_, err := r.Resolve(context.Background(), "unknown-org/repo", "")
+	assert.Error(t, err)
 }
 
 func TestResolve_OwnerRuleMultipleMatch(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	cfg.Profiles["personal"] = config.Profile{
+		GHConfigDir: "/tmp/gh-p", SSHHost: "gh-p",
+		GitName: "P", GitEmail: "p@p.com",
+		Owners: []string{"company-org"},
+	}
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: repo owner matches 2+ profiles
-	// When: Resolve is called
-	// Then: falls through to Step 4 (probe)
+	_, err := r.Resolve(context.Background(), "company-org/repo", "")
+	assert.Error(t, err)
 }
 
+// Step 4: Probe
 func TestResolve_ProbeSinglePush(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := &config.Config{
+		CacheTTLDays: 90,
+		Profiles: map[string]config.Profile{
+			"work": {
+				GHConfigDir: "/tmp/gh-work", SSHHost: "github-work",
+				GitName: "W", GitEmail: "w@co.com", Owners: []string{"company-org"},
+			},
+		},
+	}
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{
+		Output: []byte(`{"permissions":{"push":true}}`),
+	}
 
-	// Given: gh api probe shows only "work" has push access
-	// When: Resolve is called (no cache, no owner match)
-	// Then: returns "work" (Step 4)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	result, err := r.Resolve(context.Background(), "unknown/repo", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, "work", result.Profile)
+	assert.Equal(t, "probe", result.Reason)
 }
 
 func TestResolve_ProbeNoPush(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: no profile has push access (all 404 or push=false)
-	// When: Resolve is called
-	// Then: returns error with exit code 4
+	_, err := r.Resolve(context.Background(), "private-org/repo", "")
+	assert.Error(t, err)
 }
 
+// Step 5: Non-interactive ambiguous
 func TestResolve_ProbeMultiplePush_NonInteractive(t *testing.T) {
-	t.Skip("not implemented")
+	cfg := testConfig()
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{
+		Output: []byte(`{"permissions":{"push":true}}`),
+	}
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
 
-	// Given: 2+ profiles have push access, non-interactive mode
-	// When: Resolve is called
-	// Then: returns error with exit code 3
-}
-
-func TestResolve_ProbeRateLimitWarning(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: gh api response has X-RateLimit-Remaining < 10
-	// When: probe is executed
-	// Then: warning is output to stderr, probe continues
-}
-
-func TestResolve_FullPipeline(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Integration: full 5-step pipeline with FakeCommander
-	// Tests the transition between steps
+	_, err := r.Resolve(context.Background(), "shared/repo", "")
+	assert.Error(t, err)
 }
