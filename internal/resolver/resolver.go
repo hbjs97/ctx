@@ -26,16 +26,15 @@ type Result struct {
 
 // Resolver는 5단계 계정 판정 파이프라인이다.
 type Resolver struct {
-	config      *config.Config
-	cache       *cache.Cache
-	git         *git.Adapter
-	gh          *gh.Adapter
-	interactive bool
+	config *config.Config
+	cache  *cache.Cache
+	git    *git.Adapter
+	gh     *gh.Adapter
 }
 
 // New는 새 Resolver를 생성한다.
-func New(cfg *config.Config, c *cache.Cache, g *git.Adapter, h *gh.Adapter, interactive bool) *Resolver {
-	return &Resolver{config: cfg, cache: c, git: g, gh: h, interactive: interactive}
+func New(cfg *config.Config, c *cache.Cache, g *git.Adapter, h *gh.Adapter) *Resolver {
+	return &Resolver{config: cfg, cache: c, git: g, gh: h}
 }
 
 // Resolve는 5단계 파이프라인으로 프로필을 판정한다.
@@ -89,9 +88,6 @@ func (r *Resolver) Resolve(ctx context.Context, ownerRepo, explicitProfile strin
 		return nil, fmt.Errorf("resolver.Resolve: %w", ErrAuthFail)
 	}
 
-	// Step 5: 사용자 선택
-	if !r.interactive {
-		return nil, fmt.Errorf("resolver.Resolve: %w", ErrAmbiguous)
-	}
+	// Step 5: 복수 프로필 매칭 — 자동 판정 불가
 	return nil, fmt.Errorf("resolver.Resolve: %w", ErrAmbiguous)
 }

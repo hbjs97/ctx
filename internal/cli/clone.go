@@ -45,12 +45,15 @@ func (a *App) runClone(ctx context.Context, target, profileFlag string, noGuard 
 	}
 
 	c, _ := cache.Load(a.cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
+	if c == nil {
+		c = cache.New()
+	}
 
 	gitAdapter := git.NewAdapter(a.Commander)
 	ghAdapter := gh.NewAdapter(a.Commander)
 
 	ownerRepo := ref.Owner + "/" + ref.Repo
-	r := resolver.New(cfg, c, gitAdapter, ghAdapter, false)
+	r := resolver.New(cfg, c, gitAdapter, ghAdapter)
 	result, err := r.Resolve(ctx, ownerRepo, profileFlag)
 	if err != nil {
 		return err

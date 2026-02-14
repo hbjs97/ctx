@@ -64,7 +64,9 @@ func CheckBinaries(ctx context.Context, cmd cmdexec.Commander) []DiagResult {
 
 // CheckGHAuth는 gh CLI 인증 상태를 확인한다.
 func CheckGHAuth(ctx context.Context, cmd cmdexec.Commander, ghConfigDir string) DiagResult {
-	_, err := cmd.Run(ctx, "gh", "auth", "status")
+	env := gh.SuppressEnvTokens()
+	env["GH_CONFIG_DIR"] = ghConfigDir
+	_, err := cmd.RunWithEnv(ctx, env, "gh", "auth", "status")
 	if err != nil {
 		return DiagResult{
 			Name:    "gh_auth",

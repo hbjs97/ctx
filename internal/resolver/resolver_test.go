@@ -36,7 +36,7 @@ func testConfig() *config.Config {
 func TestResolve_ExplicitFlag(t *testing.T) {
 	cfg := testConfig()
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	result, err := r.Resolve(context.Background(), "any/repo", "work")
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestResolve_ExplicitFlag(t *testing.T) {
 func TestResolve_ExplicitFlag_NotExists(t *testing.T) {
 	cfg := testConfig()
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	_, err := r.Resolve(context.Background(), "any/repo", "nonexist")
 	assert.Error(t, err)
@@ -62,7 +62,7 @@ func TestResolve_CacheHit(t *testing.T) {
 		ResolvedAt: time.Now().Format(time.RFC3339), ConfigHash: cfg.ConfigHash(),
 	})
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	result, err := r.Resolve(context.Background(), "company-org/api", "")
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestResolve_CacheTTLExpired(t *testing.T) {
 		ConfigHash: cfg.ConfigHash(),
 	})
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	result, err := r.Resolve(context.Background(), "company-org/api", "")
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestResolve_CacheHashMismatch(t *testing.T) {
 		ResolvedAt: time.Now().Format(time.RFC3339), ConfigHash: "stale_hash",
 	})
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, c, git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	result, err := r.Resolve(context.Background(), "company-org/api", "")
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestResolve_CacheHashMismatch(t *testing.T) {
 func TestResolve_OwnerRuleSingleMatch(t *testing.T) {
 	cfg := testConfig()
 	fake := testutil.NewFakeCommander()
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	result, err := r.Resolve(context.Background(), "company-org/api", "")
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestResolve_OwnerRuleNoMatch(t *testing.T) {
 	cfg := testConfig()
 	fake := testutil.NewFakeCommander()
 	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	_, err := r.Resolve(context.Background(), "unknown-org/repo", "")
 	assert.Error(t, err)
@@ -132,7 +132,7 @@ func TestResolve_OwnerRuleMultipleMatch(t *testing.T) {
 	}
 	fake := testutil.NewFakeCommander()
 	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	_, err := r.Resolve(context.Background(), "company-org/repo", "")
 	assert.Error(t, err)
@@ -154,7 +154,7 @@ func TestResolve_ProbeSinglePush(t *testing.T) {
 		Output: []byte(`{"permissions":{"push":true}}`),
 	}
 
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 	result, err := r.Resolve(context.Background(), "unknown/repo", "")
 
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestResolve_ProbeNoPush(t *testing.T) {
 	cfg := testConfig()
 	fake := testutil.NewFakeCommander()
 	fake.DefaultResponse = &testutil.Response{Err: fmt.Errorf("HTTP 404")}
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	_, err := r.Resolve(context.Background(), "private-org/repo", "")
 	assert.Error(t, err)
@@ -179,7 +179,7 @@ func TestResolve_ProbeMultiplePush_NonInteractive(t *testing.T) {
 	fake.DefaultResponse = &testutil.Response{
 		Output: []byte(`{"permissions":{"push":true}}`),
 	}
-	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake), false)
+	r := resolver.New(cfg, cache.New(), git.NewAdapter(fake), gh.NewAdapter(fake))
 
 	_, err := r.Resolve(context.Background(), "shared/repo", "")
 	assert.Error(t, err)

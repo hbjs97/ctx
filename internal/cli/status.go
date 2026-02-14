@@ -44,7 +44,7 @@ func (a *App) runStatus(ctx context.Context) error {
 
 	profile, err := cfg.GetProfile(profileName)
 	if err != nil {
-		return fmt.Errorf("cli.status: 설정의 프로필 %q를 찾을 수 없습니다", profileName)
+		return fmt.Errorf("cli.status: %w", err)
 	}
 
 	gitAdapter := git.NewAdapter(a.Commander)

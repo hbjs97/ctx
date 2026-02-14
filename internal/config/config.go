@@ -99,7 +99,7 @@ func (c *Config) MatchOwner(owner string) []string {
 func (c *Config) GetProfile(name string) (*Profile, error) {
 	p, ok := c.Profiles[name]
 	if !ok {
-		return nil, fmt.Errorf("config.GetProfile: 프로필 %q 없음", name)
+		return nil, fmt.Errorf("config.GetProfile: 프로필 %q 없음: %w", name, ErrConfig)
 	}
 	return &p, nil
 }

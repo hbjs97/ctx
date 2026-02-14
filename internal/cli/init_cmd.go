@@ -57,9 +57,12 @@ func (a *App) runInit(ctx context.Context, profileFlag string, noGuard bool) err
 	}
 
 	c, _ := cache.Load(a.cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
+	if c == nil {
+		c = cache.New()
+	}
 	ownerRepo := ref.Owner + "/" + ref.Repo
 
-	r := resolver.New(cfg, c, gitAdapter, ghAdapter, false)
+	r := resolver.New(cfg, c, gitAdapter, ghAdapter)
 	result, err := r.Resolve(ctx, ownerRepo, profileFlag)
 	if err != nil {
 		return err

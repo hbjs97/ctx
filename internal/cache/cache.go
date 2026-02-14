@@ -79,7 +79,10 @@ func (c *Cache) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("cache.Save: %w", err)
 	}
-	return os.WriteFile(path, data, 0600)
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("cache.Save: %w", err)
+	}
+	return nil
 }
 
 // InvalidateByProfile은 특정 프로필의 모든 캐시 항목을 제거한다.

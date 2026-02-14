@@ -39,7 +39,7 @@ func (a *App) runGuardCheck(cmd *cobra.Command) error {
 	profilePath := filepath.Join(cwd, ".git", "ctx-profile")
 	data, err := os.ReadFile(profilePath)
 	if err != nil {
-		return fmt.Errorf("cli.guard: ctx-profile 없음 — 'ctx init' 실행 필요")
+		return fmt.Errorf("cli.guard: ctx-profile 읽기 실패: %w", err)
 	}
 	profileName := strings.TrimSpace(string(data))
 
@@ -62,12 +62,12 @@ func (a *App) runGuardCheck(cmd *cobra.Command) error {
 		for _, v := range result.Violations {
 			fmt.Printf("[%s] %s: 기대=%s, 실제=%s\n", v.Severity, v.Field, v.Expected, v.Actual)
 		}
-		return fmt.Errorf("guard: %w", guard.ErrGuardBlock)
+		return fmt.Errorf("cli.guard: %w", guard.ErrGuardBlock)
 	}
 
 	for _, v := range result.Violations {
 		if v.Severity == "warning" {
-			fmt.Printf("[경고] %s: 기대=%s, 실제=%s\n", v.Field, v.Expected, v.Actual)
+			fmt.Fprintf(os.Stderr, "[경고] %s: 기대=%s, 실제=%s\n", v.Field, v.Expected, v.Actual)
 		}
 	}
 
