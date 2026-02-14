@@ -55,7 +55,6 @@ gh_config_dir = "/Users/hbjs/.config/gh-company"
 ssh_host = "github-company"
 git_name = "HBJS"
 git_email = "hbjs@company.com"
-email_domain = "company.com"
 owners = ["company-org", "company-team"]
 
 [profiles.personal]
@@ -63,7 +62,6 @@ gh_config_dir = "/Users/hbjs/.config/gh-personal"
 ssh_host = "github-personal"
 git_name = "hbjs97"
 git_email = "hbjs97@naver.com"
-email_domain = "naver.com"
 owners = ["hbjs97", "sutefu23"]
 ```
 
@@ -494,7 +492,6 @@ eval "$(ctx activate)"
 | 3 | 모호 판정 | 비대화형 모드에서 Resolver 확정 실패 |
 | 4 | 권한/인증 실패 | 모든 프로필에서 접근 불가 |
 | 5 | 설정 오류 | config.toml 파싱 실패, 프로필 미존재 |
-| 6 | 의존성 없음 | git / gh / ssh 미설치 |
 
 스크립팅 연동: exit code 2(guard 차단)와 3(모호 판정)은 의도적 방어 동작이므로 에러와 구분하여 처리.
 

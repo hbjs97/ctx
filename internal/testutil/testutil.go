@@ -1,4 +1,4 @@
-// Package testutil provides common test helpers for the ctx project.
+// Package testutil은 ctx 프로젝트의 공통 테스트 헬퍼를 제공한다.
 package testutil
 
 import (
@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// TempGitRepo creates a temporary git repository and returns its path.
-// The repository is automatically cleaned up when the test finishes.
+// TempGitRepo는 임시 git 리포를 생성하고 경로를 반환한다.
+// 테스트 종료 시 자동으로 정리된다.
 func TempGitRepo(t *testing.T) string {
 	t.Helper()
 
@@ -32,8 +32,7 @@ func TempGitRepo(t *testing.T) string {
 	return dir
 }
 
-// TempGitRepoWithRemote creates a temporary git repository with a remote
-// configured to the given URL.
+// TempGitRepoWithRemote는 지정된 URL로 remote가 설정된 임시 git 리포를 생성한다.
 func TempGitRepoWithRemote(t *testing.T, remoteURL string) string {
 	t.Helper()
 
@@ -48,8 +47,8 @@ func TempGitRepoWithRemote(t *testing.T, remoteURL string) string {
 	return dir
 }
 
-// TempBareRepo creates a temporary bare git repository and returns its path.
-// Useful for E2E tests that need a push target.
+// TempBareRepo는 임시 bare git 리포를 생성하고 경로를 반환한다.
+// push 대상이 필요한 E2E 테스트에 유용하다.
 func TempBareRepo(t *testing.T) string {
 	t.Helper()
 
@@ -64,8 +63,8 @@ func TempBareRepo(t *testing.T) string {
 	return dir
 }
 
-// TempConfigFile creates a temporary config.toml with the given content
-// and returns its path. The file is automatically cleaned up.
+// TempConfigFile은 주어진 내용으로 임시 config.toml을 생성하고 경로를 반환한다.
+// 파일은 자동으로 정리된다.
 func TempConfigFile(t *testing.T, content string) string {
 	t.Helper()
 
@@ -79,8 +78,7 @@ func TempConfigFile(t *testing.T, content string) string {
 	return path
 }
 
-// TempCacheFile creates a temporary cache.json with the given content
-// and returns its path.
+// TempCacheFile은 주어진 내용으로 임시 cache.json을 생성하고 경로를 반환한다.
 func TempCacheFile(t *testing.T, content string) string {
 	t.Helper()
 
@@ -94,8 +92,8 @@ func TempCacheFile(t *testing.T, content string) string {
 	return path
 }
 
-// SetupTestProfiles creates a temporary config.toml with work and personal
-// profiles pre-configured. Returns the config file path.
+// SetupTestProfiles는 work/personal 2개 프로필이 설정된 임시 config.toml을 생성한다.
+// config 파일 경로를 반환한다.
 func SetupTestProfiles(t *testing.T) string {
 	t.Helper()
 
@@ -110,7 +108,6 @@ gh_config_dir = "/tmp/gh-work"
 ssh_host = "github-company"
 git_name = "HBJS"
 git_email = "hbjs@company.com"
-email_domain = "company.com"
 owners = ["company-org", "company-team"]
 
 [profiles.personal]
@@ -118,13 +115,12 @@ gh_config_dir = "/tmp/gh-personal"
 ssh_host = "github-personal"
 git_name = "hbjs97"
 git_email = "hbjs97@naver.com"
-email_domain = "naver.com"
 owners = ["hbjs97", "sutefu23"]
 `
 	return TempConfigFile(t, content)
 }
 
-// WriteCtxProfile writes a ctx-profile file in the given git repo's .git directory.
+// WriteCtxProfile은 주어진 git 리포의 .git 디렉토리에 ctx-profile 파일을 기록한다.
 func WriteCtxProfile(t *testing.T, repoDir string, profileName string) {
 	t.Helper()
 
@@ -134,7 +130,7 @@ func WriteCtxProfile(t *testing.T, repoDir string, profileName string) {
 	}
 }
 
-// ReadCtxProfile reads the ctx-profile from the given git repo's .git directory.
+// ReadCtxProfile은 주어진 git 리포의 .git 디렉토리에서 ctx-profile을 읽는다.
 func ReadCtxProfile(t *testing.T, repoDir string) string {
 	t.Helper()
 

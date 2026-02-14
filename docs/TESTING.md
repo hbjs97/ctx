@@ -48,12 +48,12 @@ func TestParseRepoURL(t *testing.T) {
         {
             name:  "ssh url",
             input: "git@github-company:company-org/api-server.git",
-            want:  RepoRef{Owner: "company-org", Repo: "api-server", Host: "github-company"},
+            want:  RepoRef{Owner: "company-org", Repo: "api-server"},
         },
         {
             name:  "https url",
             input: "https://github.com/hbjs97/dotfiles.git",
-            want:  RepoRef{Owner: "hbjs97", Repo: "dotfiles", Host: "github.com"},
+            want:  RepoRef{Owner: "hbjs97", Repo: "dotfiles"},
         },
         {
             name:  "shorthand",
@@ -163,15 +163,20 @@ package e2e_test
 | 함수 | 용도 |
 |------|------|
 | `TempGitRepo(t *testing.T) string` | 임시 git repo 생성, t.Cleanup 자동 정리 |
+| `TempGitRepoWithRemote(t *testing.T, remoteURL string) string` | remote 설정된 임시 git repo 생성 |
+| `TempBareRepo(t *testing.T) string` | 임시 bare git repo 생성 (push 대상) |
 | `TempConfigFile(t *testing.T, content string) string` | 임시 config.toml 생성 |
-| `MockGHResponse(status int, body string)` | gh API mock 응답 설정 |
+| `TempCacheFile(t *testing.T, content string) string` | 임시 cache.json 생성 |
 | `SetupTestProfiles(t *testing.T) string` | work/personal 2개 프로필 config 생성 |
+| `WriteCtxProfile(t *testing.T, repoDir, profileName string)` | .git/ctx-profile 파일 기록 |
+| `ReadCtxProfile(t *testing.T, repoDir string) string` | .git/ctx-profile 파일 읽기 |
 
 ### 5.2 exec.go - Commander Interface
 
 ```go
 type Commander interface {
-    Run(name string, args ...string) ([]byte, error)
+    Run(ctx context.Context, name string, args ...string) ([]byte, error)
+    RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error)
 }
 ```
 
