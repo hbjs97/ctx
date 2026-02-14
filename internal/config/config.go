@@ -1,8 +1,10 @@
 package config
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/BurntSushi/toml"
 )
@@ -68,6 +70,45 @@ func ValidateFilePermissions(path string) error {
 		return fmt.Errorf("config.ValidateFilePermissions: %s 권한이 %o (0600 필요)", path, perm)
 	}
 	return nil
+}
+
+// MatchOwner는 owner가 포함된 프로필 이름 목록을 반환한다.
+func (c *Config) MatchOwner(owner string) []string {
+	var matches []string
+	for name, p := range c.Profiles {
+		for _, o := range p.Owners {
+			if o == owner {
+				matches = append(matches, name)
+				break
+			}
+		}
+	}
+	sort.Strings(matches)
+	return matches
+}
+
+// GetProfile은 이름으로 프로필을 조회한다. 없으면 에러.
+func (c *Config) GetProfile(name string) (*Profile, error) {
+	p, ok := c.Profiles[name]
+	if !ok {
+		return nil, fmt.Errorf("config.GetProfile: 프로필 %q 없음", name)
+	}
+	return &p, nil
+}
+
+// ConfigHash는 profiles 섹션의 SHA-256 해시(앞 8자)를 반환한다.
+func (c *Config) ConfigHash() string {
+	h := sha256.New()
+	keys := make([]string, 0, len(c.Profiles))
+	for k := range c.Profiles {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		p := c.Profiles[k]
+		fmt.Fprintf(h, "%s:%s:%s:%s:%s:%v", k, p.GHConfigDir, p.SSHHost, p.GitEmail, p.GitName, p.Owners)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))[:8]
 }
 
 func (c *Config) applyDefaults() {

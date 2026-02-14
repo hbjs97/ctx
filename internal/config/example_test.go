@@ -150,3 +150,72 @@ func TestValidateFilePermissions(t *testing.T) {
 	err = config.ValidateFilePermissions(path)
 	assert.Error(t, err)
 }
+
+func TestMatchOwner_SingleMatch(t *testing.T) {
+	cfg := &config.Config{
+		Profiles: map[string]config.Profile{
+			"work":     {Owners: []string{"company-org", "company-team"}},
+			"personal": {Owners: []string{"hbjs97", "sutefu23"}},
+		},
+	}
+	matches := cfg.MatchOwner("company-org")
+	assert.Equal(t, []string{"work"}, matches)
+}
+
+func TestMatchOwner_NoMatch(t *testing.T) {
+	cfg := &config.Config{
+		Profiles: map[string]config.Profile{
+			"work": {Owners: []string{"company-org"}},
+		},
+	}
+	matches := cfg.MatchOwner("unknown-org")
+	assert.Empty(t, matches)
+}
+
+func TestMatchOwner_MultipleMatch(t *testing.T) {
+	cfg := &config.Config{
+		Profiles: map[string]config.Profile{
+			"work":     {Owners: []string{"shared-org"}},
+			"personal": {Owners: []string{"shared-org"}},
+		},
+	}
+	matches := cfg.MatchOwner("shared-org")
+	assert.Len(t, matches, 2)
+}
+
+func TestGetProfile_Exists(t *testing.T) {
+	cfg := &config.Config{
+		Profiles: map[string]config.Profile{
+			"work": {GHConfigDir: "/tmp/gh-work", GitEmail: "w@co.com"},
+		},
+	}
+	p, err := cfg.GetProfile("work")
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/gh-work", p.GHConfigDir)
+}
+
+func TestGetProfile_NotExists(t *testing.T) {
+	cfg := &config.Config{Profiles: map[string]config.Profile{}}
+	_, err := cfg.GetProfile("nonexistent")
+	assert.Error(t, err)
+}
+
+func TestConfigHash(t *testing.T) {
+	cfg := &config.Config{
+		Profiles: map[string]config.Profile{
+			"work": {GHConfigDir: "/tmp", GitEmail: "a@b.com"},
+		},
+	}
+
+	hash1 := cfg.ConfigHash()
+	assert.NotEmpty(t, hash1)
+
+	// 동일 설정 → 동일 해시
+	hash2 := cfg.ConfigHash()
+	assert.Equal(t, hash1, hash2)
+
+	// 프로필 변경 → 해시 변경
+	cfg.Profiles["work"] = config.Profile{GHConfigDir: "/tmp2", GitEmail: "c@d.com"}
+	hash3 := cfg.ConfigHash()
+	assert.NotEqual(t, hash1, hash3)
+}
