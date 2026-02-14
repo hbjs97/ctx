@@ -15,8 +15,6 @@ GitHub 멀티계정 컨텍스트 매니저 CLI.
 
 - Go 1.26+
 - `git`, `gh`, `ssh` CLI 설치
-- GitHub 계정별 `gh auth login` 완료 (`GH_CONFIG_DIR` 분리)
-- GitHub 계정별 SSH Host alias 설정 (`~/.ssh/config`)
 
 ## 설치
 
@@ -52,8 +50,9 @@ ctx setup
 대화형 설정 마법사가 실행된다:
 
 - 프로필 이름, git 사용자 정보 입력
+- SSH 키 자동 감지 및 선택/생성 (기존 키 사용 또는 `id_ed25519_{프로필명}` 자동 생성)
+- `~/.ssh/config`에 Host alias 자동 추가
 - `gh auth login` 자동 실행
-- `~/.ssh/config`에서 SSH host 자동 감지
 - `gh api`로 소속 조직 자동 조회
 - 셸 hook 자동 설치
 
