@@ -1,93 +1,138 @@
 package guard_test
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/hbjs97/ctx/internal/config"
+	"github.com/hbjs97/ctx/internal/guard"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestCheck_AllMatch(t *testing.T) {
-	t.Skip("not implemented")
+func testProfile() *config.Profile {
+	return &config.Profile{
+		GHConfigDir: "/tmp/gh-work",
+		SSHHost:     "github-work",
+		GitName:     "Test User",
+		GitEmail:    "test@company.com",
+	}
+}
 
-	// Given: repo with ctx-profile="work", remote SSH host matches, email matches
-	// When: Check(repoDir) is called
-	// Then: returns nil (guard pass)
+func TestCheck_AllMatch(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git -C", "git@github-work:org/repo.git\n", nil)
+	// For user.email query
+	fake.Responses["git -C /tmp/repo config --local user.email"] = testutil.Response{Output: []byte("test@company.com\n")}
+	fake.Responses["git -C /tmp/repo config --local user.name"] = testutil.Response{Output: []byte("Test User\n")}
+	fake.Responses["git -C /tmp/repo remote get-url origin"] = testutil.Response{Output: []byte("git@github-work:org/repo.git\n")}
+
+	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
+	require.NoError(t, err)
+	assert.True(t, result.Pass)
+	assert.Empty(t, result.Violations)
 }
 
 func TestCheck_RemoteHostMismatch(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Responses["git -C /tmp/repo remote get-url origin"] = testutil.Response{Output: []byte("git@github-personal:org/repo.git\n")}
+	fake.Responses["git -C /tmp/repo config --local user.email"] = testutil.Response{Output: []byte("test@company.com\n")}
+	fake.Responses["git -C /tmp/repo config --local user.name"] = testutil.Response{Output: []byte("Test User\n")}
 
-	// Given: ctx-profile="work" (ssh_host="github-company") but remote is "github.com"
-	// When: Check is called
-	// Then: returns GuardError with remote host mismatch details
+	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
+	require.NoError(t, err)
+	assert.False(t, result.Pass)
+	assert.Equal(t, "error", result.Violations[0].Severity)
+	assert.Equal(t, "remote_host", result.Violations[0].Field)
 }
 
 func TestCheck_EmailMismatch(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Responses["git -C /tmp/repo remote get-url origin"] = testutil.Response{Output: []byte("git@github-work:org/repo.git\n")}
+	fake.Responses["git -C /tmp/repo config --local user.email"] = testutil.Response{Output: []byte("wrong@email.com\n")}
+	fake.Responses["git -C /tmp/repo config --local user.name"] = testutil.Response{Output: []byte("Test User\n")}
 
-	// Given: ctx-profile="work" (email="hbjs@company.com") but git email is "hbjs97@naver.com"
-	// When: Check is called
-	// Then: returns GuardError with email mismatch details
+	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
+	require.NoError(t, err)
+	assert.False(t, result.Pass)
+	assert.Equal(t, "user_email", result.Violations[0].Field)
 }
 
 func TestCheck_NameMismatch(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Responses["git -C /tmp/repo remote get-url origin"] = testutil.Response{Output: []byte("git@github-work:org/repo.git\n")}
+	fake.Responses["git -C /tmp/repo config --local user.email"] = testutil.Response{Output: []byte("test@company.com\n")}
+	fake.Responses["git -C /tmp/repo config --local user.name"] = testutil.Response{Output: []byte("Wrong Name\n")}
 
-	// Given: ctx-profile="work" (name="HBJS") but git name is "hbjs97"
-	// When: Check is called
-	// Then: returns GuardWarning (warning, not block by default)
-}
-
-func TestCheck_ProfileNotFound(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: ctx-profile references a profile not in config.toml
-	// When: Check is called
-	// Then: returns error about unregistered profile
-}
-
-func TestCheck_NoCtxProfile(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: repo without .git/ctx-profile
-	// When: Check is called
-	// Then: returns error suggesting "ctx init"
+	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
+	require.NoError(t, err)
+	// Name mismatch is WARNING, not error — so Pass is still true
+	assert.True(t, result.Pass)
+	assert.Len(t, result.Violations, 1)
+	assert.Equal(t, "warning", result.Violations[0].Severity)
+	assert.Equal(t, "user_name", result.Violations[0].Field)
 }
 
 func TestCheck_SkipGuardEnv(t *testing.T) {
-	t.Skip("not implemented")
+	t.Setenv("CTX_SKIP_GUARD", "1")
+	fake := testutil.NewFakeCommander()
 
-	// Given: CTX_SKIP_GUARD=1 is set
-	// When: Check is called
-	// Then: returns nil (bypassed) with warning on stderr
+	result, err := guard.Check(context.Background(), "/tmp/repo", testProfile(), fake)
+	require.NoError(t, err)
+	assert.True(t, result.Pass)
 }
 
-func TestInstallHook_NoExistingHook(t *testing.T) {
-	t.Skip("not implemented")
+func TestInstallHook_NoExisting(t *testing.T) {
+	repoDir := testutil.TempGitRepo(t)
+	hookPath := filepath.Join(repoDir, ".git", "hooks", "pre-push")
 
-	// Given: repo with no pre-push hook
-	// When: InstallHook(repoDir) is called
-	// Then: .git/hooks/pre-push is created with ctx guard check invocation
+	err := guard.InstallHook(repoDir)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(hookPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "# ctx-guard-start")
+	assert.Contains(t, string(data), "# ctx-guard-end")
+	assert.Contains(t, string(data), "ctx guard check")
+
+	info, _ := os.Stat(hookPath)
+	assert.True(t, info.Mode()&0111 != 0, "hook should be executable")
 }
 
 func TestInstallHook_ExistingHook(t *testing.T) {
-	t.Skip("not implemented")
+	repoDir := testutil.TempGitRepo(t)
+	hookDir := filepath.Join(repoDir, ".git", "hooks")
+	os.MkdirAll(hookDir, 0755)
+	hookPath := filepath.Join(hookDir, "pre-push")
+	os.WriteFile(hookPath, []byte("#!/bin/sh\necho existing\n"), 0755)
 
-	// Given: repo with existing pre-push hook
-	// When: InstallHook is called
-	// Then: original hook is backed up, new hook chains ctx guard + original
-}
+	err := guard.InstallHook(repoDir)
+	require.NoError(t, err)
 
-func TestInstallHook_HooksPath(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: repo with core.hooksPath set (husky/lefthook)
-	// When: InstallHook is called
-	// Then: ctx guard is inserted into the hooksPath pre-push file
+	data, _ := os.ReadFile(hookPath)
+	content := string(data)
+	assert.Contains(t, content, "echo existing")
+	assert.Contains(t, content, "# ctx-guard-start")
 }
 
 func TestUninstallHook(t *testing.T) {
-	t.Skip("not implemented")
+	repoDir := testutil.TempGitRepo(t)
 
-	// Given: repo with ctx guard installed in pre-push hook
-	// When: UninstallHook(repoDir) is called
-	// Then: ctx guard markers are removed, backup is restored if exists
+	// First install
+	guard.InstallHook(repoDir)
+
+	// Then uninstall
+	err := guard.UninstallHook(repoDir)
+	require.NoError(t, err)
+
+	hookPath := filepath.Join(repoDir, ".git", "hooks", "pre-push")
+	data, err := os.ReadFile(hookPath)
+	if err == nil {
+		content := string(data)
+		assert.NotContains(t, content, "# ctx-guard-start")
+		assert.NotContains(t, content, "ctx guard check")
+	}
 }
