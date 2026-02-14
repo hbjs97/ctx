@@ -1,106 +1,152 @@
 package config_test
 
 import (
+	"os"
 	"testing"
+
+	"github.com/hbjs97/ctx/internal/config"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfig_ValidTOML(t *testing.T) {
-	t.Skip("not implemented")
+	content := `version = 1
+default_profile = "personal"
 
-	// Given: a valid config.toml with two profiles (work, personal)
-	// When: LoadConfig is called with the file path
-	// Then: returns Config with correct profiles, default_profile, and global settings
+[profiles.work]
+gh_config_dir = "/home/test/.config/gh-work"
+ssh_host = "github-work"
+git_name = "Test User"
+git_email = "test@company.com"
+email_domain = "company.com"
+owners = ["company-org", "company-team"]
+
+[profiles.personal]
+gh_config_dir = "/home/test/.config/gh-personal"
+ssh_host = "github-personal"
+git_name = "testuser"
+git_email = "test@example.com"
+email_domain = "example.com"
+owners = ["testuser"]`
+
+	path := testutil.TempConfigFile(t, content)
+	cfg, err := config.Load(path)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, cfg.Version)
+	assert.Equal(t, "personal", cfg.DefaultProfile)
+	assert.True(t, cfg.IsPromptOnAmbiguous())
+	assert.True(t, cfg.IsRequirePushGuard())
+	assert.Equal(t, 90, cfg.CacheTTLDays)
+	assert.Len(t, cfg.Profiles, 2)
+
+	work := cfg.Profiles["work"]
+	assert.Equal(t, "/home/test/.config/gh-work", work.GHConfigDir)
+	assert.Equal(t, "github-work", work.SSHHost)
+	assert.Equal(t, "Test User", work.GitName)
+	assert.Equal(t, "test@company.com", work.GitEmail)
+	assert.Equal(t, "company.com", work.EmailDomain)
+	assert.Equal(t, []string{"company-org", "company-team"}, work.Owners)
 }
 
 func TestLoadConfig_MissingFile(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a non-existent config path
-	// When: LoadConfig is called
-	// Then: returns an appropriate error (exit code 5)
+	_, err := config.Load("/nonexistent/path/config.toml")
+	assert.Error(t, err)
 }
 
 func TestLoadConfig_InvalidTOML(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a config.toml with invalid TOML syntax
-	// When: LoadConfig is called
-	// Then: returns a parse error
+	path := testutil.TempConfigFile(t, "invalid toml [[[")
+	_, err := config.Load(path)
+	assert.Error(t, err)
 }
 
 func TestLoadConfig_MissingRequiredFields(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a config.toml missing required fields (e.g., gh_config_dir)
-	// When: LoadConfig is called
-	// Then: returns a validation error listing missing fields
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "no profiles",
+			content: `version = 1`,
+		},
+		{
+			name: "missing gh_config_dir",
+			content: `version = 1
+[profiles.work]
+ssh_host = "h"
+git_name = "n"
+git_email = "e"
+owners = ["o"]`,
+		},
+		{
+			name: "missing git_email",
+			content: `version = 1
+[profiles.work]
+gh_config_dir = "/tmp"
+ssh_host = "h"
+git_name = "n"
+owners = ["o"]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := testutil.TempConfigFile(t, tt.content)
+			_, err := config.Load(path)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestLoadConfig_DefaultValues(t *testing.T) {
-	t.Skip("not implemented")
+	content := `version = 1
+[profiles.work]
+gh_config_dir = "/tmp/gh"
+ssh_host = "github-work"
+git_name = "Test"
+git_email = "t@t.com"
+owners = ["org"]`
 
-	// Given: a config.toml without optional fields
-	// When: LoadConfig is called
-	// Then: default values are applied (prompt_on_ambiguous=true, require_push_guard=true)
+	path := testutil.TempConfigFile(t, content)
+	cfg, err := config.Load(path)
+
+	require.NoError(t, err)
+	assert.True(t, cfg.IsPromptOnAmbiguous())
+	assert.True(t, cfg.IsRequirePushGuard())
+	assert.False(t, cfg.AllowHTTPSManagedRepo)
+	assert.Equal(t, 90, cfg.CacheTTLDays)
+}
+
+func TestLoadConfig_ExplicitFalse(t *testing.T) {
+	content := `version = 1
+prompt_on_ambiguous = false
+require_push_guard = false
+cache_ttl_days = 30
+[profiles.work]
+gh_config_dir = "/tmp/gh"
+ssh_host = "h"
+git_name = "n"
+git_email = "e"
+owners = ["o"]`
+
+	path := testutil.TempConfigFile(t, content)
+	cfg, err := config.Load(path)
+
+	require.NoError(t, err)
+	assert.False(t, cfg.IsPromptOnAmbiguous())
+	assert.False(t, cfg.IsRequirePushGuard())
+	assert.Equal(t, 30, cfg.CacheTTLDays)
 }
 
 func TestValidateFilePermissions(t *testing.T) {
-	t.Skip("not implemented")
+	path := testutil.TempConfigFile(t, `version = 1`)
 
-	// Given: a config.toml with various file permissions
-	// When: ValidateFilePermissions is called
-	// Then: warns if permissions are more permissive than 0600
-}
+	// 0600 — no error
+	err := config.ValidateFilePermissions(path)
+	assert.NoError(t, err)
 
-func TestConfigHash(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a config with profiles
-	// When: ConfigHash is called
-	// Then: returns a stable SHA-256 hash of the profiles section
-	// And: the hash changes when profiles are modified
-}
-
-// --- Profile Store tests (config is the Profile Store per architecture) ---
-
-func TestMatchOwner_SingleMatch(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: profiles with distinct owners
-	//   work: ["company-org", "company-team"]
-	//   personal: ["hbjs97", "sutefu23"]
-	// When: MatchOwner("company-org") is called
-	// Then: returns "work" profile only
-}
-
-func TestMatchOwner_NoMatch(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: profiles with known owners
-	// When: MatchOwner("unknown-org") is called
-	// Then: returns empty result (no match)
-}
-
-func TestMatchOwner_MultipleMatch(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: profiles where "shared-org" appears in both work and personal owners
-	// When: MatchOwner("shared-org") is called
-	// Then: returns both profiles (ambiguous)
-}
-
-func TestGetProfile_Exists(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a config with "work" and "personal" profiles
-	// When: GetProfile("work") is called
-	// Then: returns the work profile with all fields populated
-}
-
-func TestGetProfile_NotExists(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a config with "work" and "personal" profiles
-	// When: GetProfile("nonexistent") is called
-	// Then: returns an error (exit code 5)
+	// 0644 — error
+	os.Chmod(path, 0644)
+	err = config.ValidateFilePermissions(path)
+	assert.Error(t, err)
 }
