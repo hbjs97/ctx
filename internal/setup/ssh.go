@@ -51,6 +51,33 @@ func ParseSSHConfig(path string) []string {
 	return hosts
 }
 
+// DetectSSHKeys는 주어진 디렉토리에서 SSH 키 쌍을 감지한다.
+// id_* 패턴의 비밀키 파일과 대응하는 .pub 파일이 모두 존재해야 유효한 키 쌍이다.
+func DetectSSHKeys(sshDir string) []SSHKeyInfo {
+	entries, err := os.ReadDir(sshDir)
+	if err != nil {
+		return nil
+	}
+
+	var keys []SSHKeyInfo
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || strings.HasSuffix(name, ".pub") || !strings.HasPrefix(name, "id_") {
+			continue
+		}
+		pubPath := filepath.Join(sshDir, name+".pub")
+		if _, err := os.Stat(pubPath); err != nil {
+			continue
+		}
+		keys = append(keys, SSHKeyInfo{
+			Name:       name,
+			PrivateKey: filepath.Join(sshDir, name),
+			PublicKey:  pubPath,
+		})
+	}
+	return keys
+}
+
 // DefaultSSHConfigPath는 기본 SSH config 경로를 반환한다.
 func DefaultSSHConfigPath() string {
 	home, err := os.UserHomeDir()
