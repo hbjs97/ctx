@@ -16,8 +16,9 @@ func (a *App) newActivateCmd() *cobra.Command {
 	var hookOnly bool
 
 	cmd := &cobra.Command{
-		Use:   "activate",
-		Short: "현재 디렉토리에 맞는 프로필을 활성화한다",
+		Use:    "activate",
+		Short:  "현재 디렉토리에 맞는 프로필을 활성화한다",
+		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hookOnly {
 				fmt.Print(shell.HookSnippet(shellType))
