@@ -106,7 +106,7 @@ func Check(ctx context.Context, repoDir string, profile *config.Profile, cmd cmd
 // InstallHook은 pre-push hook에 guard 스크립트를 설치한다.
 func InstallHook(repoDir string) error {
 	hookDir := filepath.Join(repoDir, ".git", "hooks")
-	if err := os.MkdirAll(hookDir, 0755); err != nil {
+	if err := os.MkdirAll(hookDir, 0755); err != nil { // git hooks 디렉토리는 실행 권한 필요
 		return fmt.Errorf("guard.InstallHook: %w", err)
 	}
 	hookPath := filepath.Join(hookDir, "pre-push")
@@ -127,7 +127,7 @@ func InstallHook(repoDir string) error {
 		content = "#!/bin/sh\n" + hookScript + "\n"
 	}
 
-	return os.WriteFile(hookPath, []byte(content), 0755)
+	return os.WriteFile(hookPath, []byte(content), 0755) // 실행 권한 필요 (git hook)
 }
 
 // UninstallHook은 pre-push hook에서 guard 스크립트를 제거한다.
@@ -155,5 +155,5 @@ func UninstallHook(repoDir string) error {
 	if cleaned == "" || cleaned == "#!/bin/sh" {
 		return os.Remove(hookPath)
 	}
-	return os.WriteFile(hookPath, []byte(cleaned+"\n"), 0755)
+	return os.WriteFile(hookPath, []byte(cleaned+"\n"), 0755) // 실행 권한 필요 (git hook)
 }

@@ -1,5 +1,5 @@
-// Package cmdexec abstracts external command execution for testability.
-// Production code uses Commander interface; tests inject FakeCommander from testutil.
+// Package cmdexec는 테스트 가능성을 위해 외부 명령 실행을 추상화한다.
+// 프로덕션 코드는 Commander interface를 사용하고, 테스트는 testutil.FakeCommander를 주입한다.
 package cmdexec
 
 import (
@@ -9,33 +9,31 @@ import (
 	"os/exec"
 )
 
-// Commander abstracts external command execution.
+// Commander는 외부 명령 실행을 추상화하는 interface다.
 type Commander interface {
-	// Run executes an external command and returns its combined output.
+	// Run은 외부 명령을 실행하고 combined output을 반환한다.
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 
-	// RunWithEnv executes an external command with additional environment variables
-	// merged on top of the current process environment.
+	// RunWithEnv는 추가 환경변수를 현재 프로세스 환경에 병합하여 외부 명령을 실행한다.
 	RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error)
 }
 
-// RealCommander executes actual external commands via os/exec.
+// RealCommander는 os/exec를 통해 실제 외부 명령을 실행한다.
 type RealCommander struct{}
 
-// Run executes the command using os/exec.CommandContext.
+// Run은 os/exec.CommandContext를 사용하여 명령을 실행한다.
 func (c *RealCommander) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-// RunWithEnv executes the command with additional environment variables.
-// The provided env map is merged on top of the current process environment.
+// RunWithEnv는 추가 환경변수를 병합하여 명령을 실행한다.
 func (c *RealCommander) RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = append(os.Environ(), mapToEnvSlice(env)...)
 	return cmd.CombinedOutput()
 }
 
-// mapToEnvSlice converts a map of environment variables to a slice of "KEY=VALUE" strings.
+// mapToEnvSlice는 환경변수 맵을 "KEY=VALUE" 문자열 슬라이스로 변환한다.
 func mapToEnvSlice(env map[string]string) []string {
 	if env == nil {
 		return nil

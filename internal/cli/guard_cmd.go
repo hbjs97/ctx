@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,12 +26,12 @@ func (a *App) newGuardCheckCmd() *cobra.Command {
 		Use:   "check",
 		Short: "현재 리포의 컨텍스트 무결성을 검사한다",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.runGuardCheck(cmd)
+			return a.runGuardCheck(cmd.Context())
 		},
 	}
 }
 
-func (a *App) runGuardCheck(cmd *cobra.Command) error {
+func (a *App) runGuardCheck(ctx context.Context) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("cli.guard: %w", err)
@@ -53,7 +54,7 @@ func (a *App) runGuardCheck(cmd *cobra.Command) error {
 		return err
 	}
 
-	result, err := guard.Check(cmd.Context(), cwd, profile, a.Commander)
+	result, err := guard.Check(ctx, cwd, profile, a.Commander)
 	if err != nil {
 		return err
 	}

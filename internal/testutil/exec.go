@@ -6,39 +6,39 @@ import (
 	"strings"
 )
 
-// Response represents a pre-configured command response for FakeCommander.
+// Response는 FakeCommander의 사전 설정된 명령 응답이다.
 type Response struct {
 	Output []byte
 	Err    error
 }
 
-// FakeCommander returns pre-configured responses for testing.
-// Responses are keyed by "name arg1 arg2 ..." format.
-// If no exact match is found, it tries prefix matching.
+// FakeCommander는 테스트용으로 사전 설정된 응답을 반환한다.
+// 응답은 "name arg1 arg2 ..." 형식의 키로 매핑된다.
+// 정확한 매칭이 없으면 prefix 매칭을 시도한다.
 type FakeCommander struct {
-	// Responses maps command strings to their responses.
-	// Key format: "command arg1 arg2" (e.g., "git clone", "gh api repos/owner/repo")
+	// Responses는 명령 문자열을 응답에 매핑한다.
+	// 키 형식: "command arg1 arg2" (예: "git clone", "gh api repos/owner/repo")
 	Responses map[string]Response
 
-	// Calls records all commands that were executed, in order.
+	// Calls는 실행된 모든 명령을 순서대로 기록한다.
 	Calls []string
 
-	// EnvCalls records the environment variable maps passed to RunWithEnv, in order.
+	// EnvCalls는 RunWithEnv에 전달된 환경변수 맵을 순서대로 기록한다.
 	EnvCalls []map[string]string
 
-	// DefaultResponse is returned when no matching response is found.
-	// If nil, an error is returned for unmatched commands.
+	// DefaultResponse는 매칭되는 응답이 없을 때 반환된다.
+	// nil이면 미매칭 명령에 대해 에러를 반환한다.
 	DefaultResponse *Response
 }
 
-// NewFakeCommander creates a FakeCommander with an empty response map.
+// NewFakeCommander는 빈 응답 맵으로 FakeCommander를 생성한다.
 func NewFakeCommander() *FakeCommander {
 	return &FakeCommander{
 		Responses: make(map[string]Response),
 	}
 }
 
-// Register adds a response for the given command key.
+// Register는 주어진 명령 키에 대한 응답을 등록한다.
 func (c *FakeCommander) Register(key string, output string, err error) {
 	c.Responses[key] = Response{
 		Output: []byte(output),
@@ -46,7 +46,7 @@ func (c *FakeCommander) Register(key string, output string, err error) {
 	}
 }
 
-// Run looks up the command in Responses and returns the matching response.
+// Run은 Responses에서 명령을 조회하여 매칭되는 응답을 반환한다.
 func (c *FakeCommander) Run(_ context.Context, name string, args ...string) ([]byte, error) {
 	fullCmd := name
 	if len(args) > 0 {
@@ -80,13 +80,13 @@ func (c *FakeCommander) Run(_ context.Context, name string, args ...string) ([]b
 	return nil, fmt.Errorf("FakeCommander: no response registered for %q", fullCmd)
 }
 
-// RunWithEnv records the environment variables and delegates to Run logic.
+// RunWithEnv는 환경변수를 기록하고 Run 로직에 위임한다.
 func (c *FakeCommander) RunWithEnv(ctx context.Context, env map[string]string, name string, args ...string) ([]byte, error) {
 	c.EnvCalls = append(c.EnvCalls, env)
 	return c.Run(ctx, name, args...)
 }
 
-// Called returns true if a command matching the given prefix was executed.
+// Called는 주어진 prefix와 매칭되는 명령이 실행되었으면 true를 반환한다.
 func (c *FakeCommander) Called(prefix string) bool {
 	for _, call := range c.Calls {
 		if strings.HasPrefix(call, prefix) {
@@ -96,7 +96,7 @@ func (c *FakeCommander) Called(prefix string) bool {
 	return false
 }
 
-// CallCount returns the number of times a command matching the given prefix was executed.
+// CallCount는 주어진 prefix와 매칭되는 명령이 실행된 횟수를 반환한다.
 func (c *FakeCommander) CallCount(prefix string) int {
 	count := 0
 	for _, call := range c.Calls {
