@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
@@ -121,8 +122,121 @@ func (r *Runner) ghConfigDir(profileName string) string {
 	return filepath.Join(home, ".config", fmt.Sprintf("gh-%s", profileName))
 }
 
-// runExisting는 기존 config가 있을 때의 플로우다.
-// Task 7에서 구현.
+// runExisting는 기존 config가 있을 때의 CRUD 플로우다.
 func (r *Runner) runExisting(ctx context.Context) error {
-	return fmt.Errorf("setup.runExisting: 미구현")
+	cfg, err := config.Load(r.CfgPath)
+	if err != nil {
+		return err
+	}
+
+	profileNames := make([]string, 0, len(cfg.Profiles))
+	for name := range cfg.Profiles {
+		profileNames = append(profileNames, name)
+	}
+	sort.Strings(profileNames)
+
+	fmt.Println("기존 프로필:")
+	for _, name := range profileNames {
+		p := cfg.Profiles[name]
+		fmt.Printf("  - %s (%s)\n", name, p.GitEmail)
+	}
+
+	action, err := r.FormRunner.RunActionSelect(profileNames)
+	if err != nil {
+		return err
+	}
+
+	switch action {
+	case ActionAdd:
+		return r.addProfile(ctx, cfg)
+	case ActionEdit:
+		return r.editProfile(ctx, cfg, profileNames)
+	case ActionDelete:
+		return r.deleteProfile(cfg, profileNames)
+	default:
+		return fmt.Errorf("setup: 알 수 없는 작업: %s", action)
+	}
+}
+
+// addProfile은 새 프로필을 추가한다.
+func (r *Runner) addProfile(ctx context.Context, cfg *config.Config) error {
+	profile, err := r.collectProfile(ctx, cfg, nil)
+	if err != nil {
+		return err
+	}
+	cfg.Profiles[profile.Name] = config.Profile{
+		GHConfigDir: r.ghConfigDir(profile.Name),
+		SSHHost:     profile.SSHHost,
+		GitName:     profile.GitName,
+		GitEmail:    profile.GitEmail,
+		Owners:      profile.Owners,
+	}
+	return config.Save(r.CfgPath, cfg)
+}
+
+// editProfile은 기존 프로필을 수정한다.
+func (r *Runner) editProfile(ctx context.Context, cfg *config.Config, profileNames []string) error {
+	selected, err := r.FormRunner.RunProfileSelect(profileNames)
+	if err != nil {
+		return err
+	}
+
+	existing := cfg.Profiles[selected]
+	defaults := &ProfileInput{
+		Name:     selected,
+		GitName:  existing.GitName,
+		GitEmail: existing.GitEmail,
+		SSHHost:  existing.SSHHost,
+		Owners:   existing.Owners,
+	}
+
+	input, err := r.FormRunner.RunProfileForm(defaults, profileNames)
+	if err != nil {
+		return err
+	}
+
+	// 이름이 변경된 경우
+	if input.Name != selected {
+		delete(cfg.Profiles, selected)
+	}
+
+	cfg.Profiles[input.Name] = config.Profile{
+		GHConfigDir: existing.GHConfigDir,
+		SSHHost:     input.SSHHost,
+		GitName:     input.GitName,
+		GitEmail:    input.GitEmail,
+		Owners:      input.Owners,
+	}
+
+	if err := config.Save(r.CfgPath, cfg); err != nil {
+		return err
+	}
+
+	fmt.Println("기존 리포에 반영하려면 ctx init --refresh를 실행하세요.")
+	return nil
+}
+
+// deleteProfile은 프로필을 삭제한다.
+func (r *Runner) deleteProfile(cfg *config.Config, profileNames []string) error {
+	if len(cfg.Profiles) <= 1 {
+		return fmt.Errorf("setup: 마지막 프로필은 삭제할 수 없습니다")
+	}
+
+	selected, err := r.FormRunner.RunProfileSelect(profileNames)
+	if err != nil {
+		return err
+	}
+
+	confirmed, err := r.FormRunner.RunConfirm(
+		fmt.Sprintf("프로필 %q을 정말 삭제하시겠습니까?", selected))
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Println("삭제가 취소되었습니다.")
+		return nil
+	}
+
+	delete(cfg.Profiles, selected)
+	return config.Save(r.CfgPath, cfg)
 }

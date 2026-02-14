@@ -138,6 +138,105 @@ func TestRunner_FirstRun_MultipleProfiles(t *testing.T) {
 	assert.Equal(t, "me@personal.com", cfg.Profiles["personal"].GitEmail)
 }
 
+func TestRunner_Existing_AddProfile(t *testing.T) {
+	cfgPath := testutil.SetupTestProfiles(t)
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("gh auth login --hostname github.com", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "new-org\n", nil)
+	fc.Register("gh api user --jq .login", "newuser\n", nil)
+
+	mock := &mockFormRunner{
+		action: ActionAdd,
+		profileInputs: []*ProfileInput{{
+			Name: "freelance", GitName: "Freelance", GitEmail: "free@example.com",
+		}},
+		sshHost: "github.com-freelance",
+		owners:  []string{"new-org"},
+	}
+
+	r := &Runner{CfgPath: cfgPath, Commander: fc, FormRunner: mock}
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Len(t, cfg.Profiles, 3) // work + personal + freelance
+	assert.Equal(t, "free@example.com", cfg.Profiles["freelance"].GitEmail)
+}
+
+func TestRunner_Existing_EditProfile(t *testing.T) {
+	cfgPath := testutil.SetupTestProfiles(t)
+
+	fc := testutil.NewFakeCommander()
+
+	mock := &mockFormRunner{
+		action:          ActionEdit,
+		selectedProfile: "work",
+		profileInputs: []*ProfileInput{{
+			Name: "work", GitName: "New Name", GitEmail: "new@company.com",
+			SSHHost: "github-company", Owners: []string{"company-org"},
+		}},
+	}
+
+	r := &Runner{CfgPath: cfgPath, Commander: fc, FormRunner: mock}
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Equal(t, "new@company.com", cfg.Profiles["work"].GitEmail)
+	assert.Equal(t, "New Name", cfg.Profiles["work"].GitName)
+}
+
+func TestRunner_Existing_DeleteProfile(t *testing.T) {
+	cfgPath := testutil.SetupTestProfiles(t)
+
+	fc := testutil.NewFakeCommander()
+
+	mock := &mockFormRunner{
+		action:          ActionDelete,
+		selectedProfile: "work",
+		confirms:        []bool{true},
+	}
+
+	r := &Runner{CfgPath: cfgPath, Commander: fc, FormRunner: mock}
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	cfg, err := config.Load(cfgPath)
+	require.NoError(t, err)
+	assert.Len(t, cfg.Profiles, 1) // personal만 남음
+	_, exists := cfg.Profiles["work"]
+	assert.False(t, exists)
+}
+
+func TestRunner_Existing_DeleteLastProfile(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	cfg := &config.Config{
+		Version: 1,
+		Profiles: map[string]config.Profile{
+			"only": {
+				GHConfigDir: "/tmp/gh-only", SSHHost: "github.com-only",
+				GitName: "Only", GitEmail: "only@test.com", Owners: []string{"only-org"},
+			},
+		},
+	}
+	require.NoError(t, config.Save(cfgPath, cfg))
+
+	fc := testutil.NewFakeCommander()
+	mock := &mockFormRunner{
+		action:          ActionDelete,
+		selectedProfile: "only",
+		confirms:        []bool{true},
+	}
+
+	r := &Runner{CfgPath: cfgPath, Commander: fc, FormRunner: mock}
+	err := r.Run(context.Background())
+	assert.Error(t, err) // 마지막 프로필 삭제 불가
+}
+
 func TestRunner_FirstRun_GHAuthFails(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := dir + "/config.toml"
