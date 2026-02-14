@@ -1,92 +1,106 @@
 package doctor_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
+
+	"github.com/hbjs97/ctx/internal/doctor"
+	"github.com/hbjs97/ctx/internal/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckBinaries_AllPresent(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("git --version", "git version 2.40.0", nil)
+	fake.Register("gh --version", "gh version 2.30.0", nil)
+	fake.Register("ssh -V", "OpenSSH_9.0", nil)
 
-	// Given: git, gh, ssh are all installed
-	// When: CheckBinaries is called
-	// Then: returns OK status for all three
+	results := doctor.CheckBinaries(context.Background(), fake)
+	for _, r := range results {
+		assert.Equal(t, doctor.StatusOK, r.Status, "check %s should be OK", r.Name)
+	}
 }
 
-func TestCheckBinaries_Missing(t *testing.T) {
-	t.Skip("not implemented")
+func TestCheckBinaries_GitMissing(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("git --version", "", fmt.Errorf("not found"))
+	fake.Register("gh --version", "gh version 2.30.0", nil)
+	fake.Register("ssh -V", "OpenSSH_9.0", nil)
 
-	// Given: gh is not installed
-	// When: CheckBinaries is called
-	// Then: returns FAIL for gh with install guidance
+	results := doctor.CheckBinaries(context.Background(), fake)
+	var gitResult *doctor.DiagResult
+	for _, r := range results {
+		if r.Name == "git" {
+			gitResult = &r
+			break
+		}
+	}
+	require.NotNil(t, gitResult)
+	assert.Equal(t, doctor.StatusFail, gitResult.Status)
+	assert.NotEmpty(t, gitResult.Fix)
 }
 
 func TestCheckGHAuth_Authenticated(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh auth status", "Logged in to github.com", nil)
 
-	// Given: profile with valid gh auth
-	// When: CheckGHAuth(profile) is called
-	// Then: returns OK status
+	result := doctor.CheckGHAuth(context.Background(), fake, "/tmp/gh-config")
+	assert.Equal(t, doctor.StatusOK, result.Status)
 }
 
 func TestCheckGHAuth_NotAuthenticated(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.Register("gh auth status", "", fmt.Errorf("not logged in"))
 
-	// Given: profile with no gh auth
-	// When: CheckGHAuth(profile) is called
-	// Then: returns FAIL with "gh auth login" guidance
+	result := doctor.CheckGHAuth(context.Background(), fake, "/tmp/gh-config")
+	assert.Equal(t, doctor.StatusFail, result.Status)
+	assert.Contains(t, result.Fix, "gh auth login")
 }
 
-func TestCheckSSHConnection(t *testing.T) {
-	t.Skip("not implemented")
+func TestCheckSSHConnection_Success(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("ssh -T", "Hi user!", nil)
 
-	// Given: profile with ssh_host configured
-	// When: CheckSSHConnection(profile) is called via FakeCommander
-	// Then: returns OK when ssh -T succeeds, FAIL when it fails
+	result := doctor.CheckSSH(context.Background(), fake, "github-work")
+	assert.Equal(t, doctor.StatusOK, result.Status)
 }
 
-func TestCheckIdentitiesOnly(t *testing.T) {
-	t.Skip("not implemented")
+func TestCheckSSHConnection_Failure(t *testing.T) {
+	fake := testutil.NewFakeCommander()
+	fake.Register("ssh -T", "", fmt.Errorf("connection refused"))
 
-	// Given: SSH config with/without IdentitiesOnly
-	// When: CheckIdentitiesOnly is called
-	// Then: returns OK when set, WARN when not set
+	result := doctor.CheckSSH(context.Background(), fake, "github-work")
+	assert.Equal(t, doctor.StatusFail, result.Status)
 }
 
-func TestCheckEnvTokens(t *testing.T) {
-	t.Skip("not implemented")
+func TestCheckEnvTokens_None(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
 
-	// Given: GH_TOKEN or GITHUB_TOKEN is set in environment
-	// When: CheckEnvTokens is called
-	// Then: returns WARN about profile auth being overridden
+	result := doctor.CheckEnvTokens()
+	assert.Equal(t, doctor.StatusOK, result.Status)
 }
 
-func TestCheckHTTPSCredentialHelper(t *testing.T) {
-	t.Skip("not implemented")
+func TestCheckEnvTokens_Set(t *testing.T) {
+	t.Setenv("GH_TOKEN", "ghp_test123")
 
-	// Given: osxkeychain credential helper for github.com
-	// When: CheckHTTPSCredentialHelper is called
-	// Then: returns FAIL about credential helper conflict
-}
-
-func TestCheckConfigValidity(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a valid config.toml
-	// When: CheckConfigValidity is called
-	// Then: returns OK
-}
-
-func TestCheckShellHook(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: shell hook is/isn't installed in zshrc
-	// When: CheckShellHook is called
-	// Then: returns OK when installed, WARN when not with "ctx setup" guidance
+	result := doctor.CheckEnvTokens()
+	assert.Equal(t, doctor.StatusWarn, result.Status)
+	assert.Contains(t, result.Message, "GH_TOKEN")
 }
 
 func TestRunAll(t *testing.T) {
-	t.Skip("not implemented")
+	fake := testutil.NewFakeCommander()
+	fake.DefaultResponse = &testutil.Response{Output: []byte("ok"), Err: nil}
 
-	// Integration: run all doctor checks with FakeCommander
-	// Verify the complete diagnostic report structure
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+
+	results := doctor.RunAll(context.Background(), fake, "/tmp/gh-config", "github-work")
+	assert.NotEmpty(t, results)
+	for _, r := range results {
+		assert.NotEmpty(t, r.Name)
+	}
 }
