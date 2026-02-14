@@ -23,7 +23,8 @@ internal/
   guard/          Guard Engine (pre-push 컨텍스트 무결성 검사)
   doctor/         환경 진단 및 문제 원인 제시
   shell/          Shell Integration (activate, chpwd hook)
-  testutil/       테스트 유틸리티 (Commander mock, 임시 디렉토리 등)
+  cmdexec/        Commander interface + RealCommander (외부 명령 추상화)
+  testutil/       테스트 유틸리티 (FakeCommander mock, 임시 디렉토리 등)
 docs/             PRD, TECH_SPEC 등 설계 문서
 ```
 
@@ -38,8 +39,9 @@ docs/             PRD, TECH_SPEC 등 설계 문서
 - error wrapping: `fmt.Errorf("패키지.함수: %w", err)`
 
 ### 외부 명령 실행
-- `git`, `gh`, `ssh` 등 외부 명령은 반드시 Commander interface를 통해 실행
-- 테스트 시 mock 가능하도록 설계
+- `git`, `gh`, `ssh` 등 외부 명령은 반드시 `cmdexec.Commander` interface를 통해 실행
+- Commander interface와 RealCommander는 `internal/cmdexec/` 패키지에 정의
+- 테스트 시 `testutil.FakeCommander`를 주입하여 mock
 
 ### 패키지 의존성
 - 방향: `cmd/ctx` -> `internal/cli` -> `internal/resolver`, `internal/config` 등
