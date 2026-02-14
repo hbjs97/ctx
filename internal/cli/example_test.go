@@ -1,68 +1,59 @@
 package cli_test
 
 import (
+	"bytes"
+	"fmt"
 	"testing"
+
+	"github.com/hbjs97/ctx/internal/cli"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestParseCloneTarget_ShortForm(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: "owner/repo" as clone target
-	// When: ParseCloneTarget is called
-	// Then: returns owner="owner", repo="repo"
+func TestNewRootCmd_Help(t *testing.T) {
+	cmd := cli.NewRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"--help"})
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Contains(t, buf.String(), "GitHub")
 }
 
-func TestParseCloneTarget_SSHURL(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: "git@github.com:owner/repo.git" as clone target
-	// When: ParseCloneTarget is called
-	// Then: returns owner="owner", repo="repo"
+func TestNewRootCmd_SubCommands(t *testing.T) {
+	cmd := cli.NewRootCmd()
+	subCmds := make(map[string]bool)
+	for _, sub := range cmd.Commands() {
+		subCmds[sub.Name()] = true
+	}
+	assert.True(t, subCmds["clone"])
+	assert.True(t, subCmds["init"])
+	assert.True(t, subCmds["status"])
+	assert.True(t, subCmds["doctor"])
+	assert.True(t, subCmds["guard"])
+	assert.True(t, subCmds["activate"])
+	assert.True(t, subCmds["setup"])
 }
 
-func TestParseCloneTarget_HTTPSURL(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: "https://github.com/owner/repo.git" as clone target
-	// When: ParseCloneTarget is called
-	// Then: returns owner="owner", repo="repo"
-}
-
-func TestExitCodeMapping(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: various error types from resolver, guard, config
-	// When: MapExitCode is called
-	// Then: returns correct exit codes:
-	//   0: success
-	//   1: general error
-	//   2: guard block
-	//   3: ambiguous resolution
-	//   4: auth/permission failure
-	//   5: config error
-	//   6: missing dependency
-}
-
-func TestStatusOutput_ManagedRepo(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a ctx-managed repo with work profile
-	// When: status command is executed
-	// Then: outputs profile, reason, remote, identity, guard status
-}
-
-func TestStatusOutput_UnmanagedRepo(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: a repo without .git/ctx-profile
-	// When: status command is executed
-	// Then: outputs "not managed by ctx" message with "ctx init" suggestion
-}
-
-func TestStatusOutput_JSON(t *testing.T) {
-	t.Skip("not implemented")
-
-	// Given: --json flag
-	// When: status command is executed
-	// Then: outputs valid JSON with all status fields
+func TestMapExitCode(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want cli.ExitCode
+	}{
+		{"nil error", nil, cli.ExitSuccess},
+		{"guard block", cli.ErrGuardBlock, cli.ExitGuardBlock},
+		{"wrapped guard", fmt.Errorf("wrap: %w", cli.ErrGuardBlock), cli.ExitGuardBlock},
+		{"ambiguous", cli.ErrAmbiguous, cli.ExitAmbiguous},
+		{"wrapped ambiguous", fmt.Errorf("resolver: %w", cli.ErrAmbiguous), cli.ExitAmbiguous},
+		{"auth fail", cli.ErrAuthFail, cli.ExitAuthFail},
+		{"wrapped auth fail", fmt.Errorf("resolver: %w", cli.ErrAuthFail), cli.ExitAuthFail},
+		{"config error", cli.ErrConfig, cli.ExitConfigError},
+		{"wrapped config", fmt.Errorf("load: %w", cli.ErrConfig), cli.ExitConfigError},
+		{"general", fmt.Errorf("unknown"), cli.ExitGeneral},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, cli.MapExitCode(tt.err))
+		})
+	}
 }

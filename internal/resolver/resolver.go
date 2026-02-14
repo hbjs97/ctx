@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,12 @@ import (
 	"github.com/hbjs97/ctx/internal/gh"
 	"github.com/hbjs97/ctx/internal/git"
 )
+
+// ErrAmbiguous는 복수 프로필이 매칭되어 자동 판정이 불가능할 때 반환된다.
+var ErrAmbiguous = errors.New("모호한 판정, --profile 플래그 필요")
+
+// ErrAuthFail는 접근 가능한 프로필이 없을 때 반환된다.
+var ErrAuthFail = errors.New("접근 가능한 프로필 없음")
 
 // Result는 Resolver의 판정 결과다.
 type Result struct {
@@ -79,12 +86,12 @@ func (r *Resolver) Resolve(ctx context.Context, ownerRepo, explicitProfile strin
 		return &Result{Profile: pushable[0], Reason: "probe"}, nil
 	}
 	if len(pushable) == 0 {
-		return nil, fmt.Errorf("resolver.Resolve: 접근 가능한 프로필 없음")
+		return nil, fmt.Errorf("resolver.Resolve: %w", ErrAuthFail)
 	}
 
 	// Step 5: 사용자 선택
 	if !r.interactive {
-		return nil, fmt.Errorf("resolver.Resolve: 모호한 판정, --profile 플래그 필요")
+		return nil, fmt.Errorf("resolver.Resolve: %w", ErrAmbiguous)
 	}
-	return nil, fmt.Errorf("resolver.Resolve: 사용자 선택 필요")
+	return nil, fmt.Errorf("resolver.Resolve: %w", ErrAmbiguous)
 }

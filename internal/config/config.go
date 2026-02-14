@@ -2,12 +2,16 @@ package config
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 
 	"github.com/BurntSushi/toml"
 )
+
+// ErrConfig는 설정 파일 오류를 나타내는 sentinel error다.
+var ErrConfig = errors.New("설정 오류")
 
 // Config는 ctx 설정 파일의 최상위 구조체다.
 type Config struct {
@@ -32,6 +36,10 @@ type Profile struct {
 
 // Load는 config.toml을 파싱하여 Config를 반환한다.
 func Load(path string) (*Config, error) {
+	if err := ValidateFilePermissions(path); err != nil {
+		fmt.Fprintf(os.Stderr, "경고: %v\n", err)
+	}
+
 	var cfg Config
 	if _, err := toml.DecodeFile(path, &cfg); err != nil {
 		return nil, fmt.Errorf("config.Load: %w", err)
@@ -127,20 +135,20 @@ func (c *Config) applyDefaults() {
 
 func (c *Config) validate() error {
 	if len(c.Profiles) == 0 {
-		return fmt.Errorf("config.Load: 프로필이 정의되지 않았습니다")
+		return fmt.Errorf("config.Load: 프로필이 정의되지 않았습니다: %w", ErrConfig)
 	}
 	for name, p := range c.Profiles {
 		if p.GHConfigDir == "" {
-			return fmt.Errorf("config.Load: profiles.%s.gh_config_dir 필수", name)
+			return fmt.Errorf("config.Load: profiles.%s.gh_config_dir 필수: %w", name, ErrConfig)
 		}
 		if p.SSHHost == "" {
-			return fmt.Errorf("config.Load: profiles.%s.ssh_host 필수", name)
+			return fmt.Errorf("config.Load: profiles.%s.ssh_host 필수: %w", name, ErrConfig)
 		}
 		if p.GitName == "" {
-			return fmt.Errorf("config.Load: profiles.%s.git_name 필수", name)
+			return fmt.Errorf("config.Load: profiles.%s.git_name 필수: %w", name, ErrConfig)
 		}
 		if p.GitEmail == "" {
-			return fmt.Errorf("config.Load: profiles.%s.git_email 필수", name)
+			return fmt.Errorf("config.Load: profiles.%s.git_email 필수: %w", name, ErrConfig)
 		}
 	}
 	return nil
