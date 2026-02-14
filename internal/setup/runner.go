@@ -64,6 +64,20 @@ func (r *Runner) runFirstTime(ctx context.Context) error {
 	}
 
 	fmt.Printf("설정 파일이 저장되었습니다: %s\n", r.CfgPath)
+
+	// 셸 hook 설치
+	shellType := DetectShell()
+	if shellType != "" {
+		rcPath := ShellRCPath(shellType)
+		if rcPath != "" {
+			if err := InstallShellHook(shellType, rcPath); err != nil {
+				fmt.Fprintf(os.Stderr, "경고: 셸 hook 설치 실패: %v\n", err)
+			} else {
+				fmt.Printf("셸 hook이 설치되었습니다: %s\n", rcPath)
+			}
+		}
+	}
+
 	return nil
 }
 
