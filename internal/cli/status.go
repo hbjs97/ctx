@@ -7,23 +7,22 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
 	"github.com/hbjs97/ctx/internal/git"
 	"github.com/spf13/cobra"
 )
 
-func newStatusCmd() *cobra.Command {
+func (a *App) newStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "현재 리포의 ctx 프로필 상태를 표시한다",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context())
+			return a.runStatus(cmd.Context())
 		},
 	}
 }
 
-func runStatus(ctx context.Context) error {
+func (a *App) runStatus(ctx context.Context) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("cli.status: %w", err)
@@ -38,7 +37,7 @@ func runStatus(ctx context.Context) error {
 	}
 	profileName := strings.TrimSpace(string(data))
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(a.CfgPath)
 	if err != nil {
 		return err
 	}
@@ -48,8 +47,7 @@ func runStatus(ctx context.Context) error {
 		return fmt.Errorf("cli.status: 설정의 프로필 %q를 찾을 수 없습니다", profileName)
 	}
 
-	commander := &cmdexec.RealCommander{}
-	gitAdapter := git.NewAdapter(commander)
+	gitAdapter := git.NewAdapter(a.Commander)
 
 	fmt.Printf("프로필: %s\n", profileName)
 	fmt.Printf("  git name:  %s\n", profile.GitName)

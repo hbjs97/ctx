@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSetupCmd() *cobra.Command {
+func (a *App) newSetupCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
 		Short: "ctx 초기 설정을 시작한다",

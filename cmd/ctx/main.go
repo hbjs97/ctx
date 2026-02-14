@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-	cmd := cli.NewRootCmd()
+	app := cli.NewApp()
+	cmd := app.NewRootCmd()
 	if err := cmd.Execute(); err != nil {
 		os.Exit(int(cli.MapExitCode(err)))
 	}

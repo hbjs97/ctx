@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newActivateCmd() *cobra.Command {
+func (a *App) newActivateCmd() *cobra.Command {
 	var shellType string
 	var hookOnly bool
 
@@ -23,7 +23,7 @@ func newActivateCmd() *cobra.Command {
 				fmt.Print(shell.HookSnippet(shellType))
 				return nil
 			}
-			return runActivate(shellType)
+			return a.runActivate(shellType)
 		},
 	}
 	cmd.Flags().StringVar(&shellType, "shell", "zsh", "셸 유형 (bash, zsh, fish)")
@@ -31,13 +31,13 @@ func newActivateCmd() *cobra.Command {
 	return cmd
 }
 
-func runActivate(shellType string) error {
+func (a *App) runActivate(shellType string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("cli.activate: %w", err)
 	}
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(a.CfgPath)
 	if err != nil {
 		// config 로드 실패 시 deactivate
 		fmt.Print(shell.Deactivate(shellType))

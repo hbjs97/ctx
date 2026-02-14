@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/hbjs97/ctx/internal/cache"
-	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
 	"github.com/hbjs97/ctx/internal/gh"
 	"github.com/hbjs97/ctx/internal/git"
@@ -17,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCloneCmd() *cobra.Command {
+func (a *App) newCloneCmd() *cobra.Command {
 	var profileFlag string
 	var noGuard bool
 
@@ -26,7 +25,7 @@ func newCloneCmd() *cobra.Command {
 		Short: "리포를 클론하고 프로필을 자동 설정한다",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runClone(cmd.Context(), args[0], profileFlag, noGuard)
+			return a.runClone(cmd.Context(), args[0], profileFlag, noGuard)
 		},
 	}
 	cmd.Flags().StringVarP(&profileFlag, "profile", "p", "", "사용할 프로필 이름")
@@ -34,22 +33,21 @@ func newCloneCmd() *cobra.Command {
 	return cmd
 }
 
-func runClone(ctx context.Context, target, profileFlag string, noGuard bool) error {
+func (a *App) runClone(ctx context.Context, target, profileFlag string, noGuard bool) error {
 	ref, err := git.ParseRepoURL(target)
 	if err != nil {
 		return err
 	}
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(a.CfgPath)
 	if err != nil {
 		return err
 	}
 
-	c, _ := cache.Load(cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
+	c, _ := cache.Load(a.cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
 
-	commander := &cmdexec.RealCommander{}
-	gitAdapter := git.NewAdapter(commander)
-	ghAdapter := gh.NewAdapter(commander)
+	gitAdapter := git.NewAdapter(a.Commander)
+	ghAdapter := gh.NewAdapter(a.Commander)
 
 	ownerRepo := ref.Owner + "/" + ref.Repo
 	r := resolver.New(cfg, c, gitAdapter, ghAdapter, false)
@@ -83,7 +81,7 @@ func runClone(ctx context.Context, target, profileFlag string, noGuard bool) err
 		ResolvedAt: time.Now().Format(time.RFC3339),
 		ConfigHash: cfg.ConfigHash(),
 	})
-	_ = c.Save(cachePath()) // 캐시 저장 실패는 치명적이지 않음
+	_ = c.Save(a.cachePath()) // 캐시 저장 실패는 치명적이지 않음
 
 	fmt.Printf("클론 완료: %s → 프로필: %s (판정: %s)\n", ownerRepo, result.Profile, result.Reason)
 	return nil

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/hbjs97/ctx/internal/cache"
-	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
 	"github.com/hbjs97/ctx/internal/gh"
 	"github.com/hbjs97/ctx/internal/git"
@@ -17,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newInitCmd() *cobra.Command {
+func (a *App) newInitCmd() *cobra.Command {
 	var profileFlag string
 	var noGuard bool
 
@@ -25,7 +24,7 @@ func newInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "현재 리포에 ctx 프로필을 설정한다",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(cmd.Context(), profileFlag, noGuard)
+			return a.runInit(cmd.Context(), profileFlag, noGuard)
 		},
 	}
 	cmd.Flags().StringVarP(&profileFlag, "profile", "p", "", "사용할 프로필 이름")
@@ -33,20 +32,19 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-func runInit(ctx context.Context, profileFlag string, noGuard bool) error {
+func (a *App) runInit(ctx context.Context, profileFlag string, noGuard bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("cli.init: %w", err)
 	}
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(a.CfgPath)
 	if err != nil {
 		return err
 	}
 
-	commander := &cmdexec.RealCommander{}
-	gitAdapter := git.NewAdapter(commander)
-	ghAdapter := gh.NewAdapter(commander)
+	gitAdapter := git.NewAdapter(a.Commander)
+	ghAdapter := gh.NewAdapter(a.Commander)
 
 	remoteURL, err := gitAdapter.GetRemoteURL(ctx, cwd, "origin")
 	if err != nil {
@@ -58,7 +56,7 @@ func runInit(ctx context.Context, profileFlag string, noGuard bool) error {
 		return err
 	}
 
-	c, _ := cache.Load(cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
+	c, _ := cache.Load(a.cachePath()) // 캐시 로드 실패 시 빈 캐시 사용
 	ownerRepo := ref.Owner + "/" + ref.Repo
 
 	r := resolver.New(cfg, c, gitAdapter, ghAdapter, false)
@@ -78,7 +76,7 @@ func runInit(ctx context.Context, profileFlag string, noGuard bool) error {
 		fmt.Printf("remote URL 변경: %s → %s\n", remoteURL, newURL)
 	}
 
-	_ = gitAdapter.SetLocalConfig(ctx, cwd, "user.name", profile.GitName)  // 설정 실패는 치명적이지 않음
+	_ = gitAdapter.SetLocalConfig(ctx, cwd, "user.name", profile.GitName)   // 설정 실패는 치명적이지 않음
 	_ = gitAdapter.SetLocalConfig(ctx, cwd, "user.email", profile.GitEmail) // 설정 실패는 치명적이지 않음
 
 	profilePath := filepath.Join(cwd, ".git", "ctx-profile")
@@ -94,7 +92,7 @@ func runInit(ctx context.Context, profileFlag string, noGuard bool) error {
 		ResolvedAt: time.Now().Format(time.RFC3339),
 		ConfigHash: cfg.ConfigHash(),
 	})
-	_ = c.Save(cachePath()) // 캐시 저장 실패는 치명적이지 않음
+	_ = c.Save(a.cachePath()) // 캐시 저장 실패는 치명적이지 않음
 
 	fmt.Printf("초기화 완료: %s → 프로필: %s (판정: %s)\n", ownerRepo, result.Profile, result.Reason)
 	return nil

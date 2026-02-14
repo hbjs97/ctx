@@ -6,32 +6,31 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hbjs97/ctx/internal/cmdexec"
 	"github.com/hbjs97/ctx/internal/config"
 	"github.com/hbjs97/ctx/internal/guard"
 	"github.com/spf13/cobra"
 )
 
-func newGuardCmd() *cobra.Command {
+func (a *App) newGuardCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "guard",
 		Short: "pre-push guard 관리",
 	}
-	cmd.AddCommand(newGuardCheckCmd())
+	cmd.AddCommand(a.newGuardCheckCmd())
 	return cmd
 }
 
-func newGuardCheckCmd() *cobra.Command {
+func (a *App) newGuardCheckCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "check",
 		Short: "현재 리포의 컨텍스트 무결성을 검사한다",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGuardCheck(cmd)
+			return a.runGuardCheck(cmd)
 		},
 	}
 }
 
-func runGuardCheck(cmd *cobra.Command) error {
+func (a *App) runGuardCheck(cmd *cobra.Command) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("cli.guard: %w", err)
@@ -44,7 +43,7 @@ func runGuardCheck(cmd *cobra.Command) error {
 	}
 	profileName := strings.TrimSpace(string(data))
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(a.CfgPath)
 	if err != nil {
 		return err
 	}
@@ -54,8 +53,7 @@ func runGuardCheck(cmd *cobra.Command) error {
 		return err
 	}
 
-	commander := &cmdexec.RealCommander{}
-	result, err := guard.Check(cmd.Context(), cwd, profile, commander)
+	result, err := guard.Check(cmd.Context(), cwd, profile, a.Commander)
 	if err != nil {
 		return err
 	}
