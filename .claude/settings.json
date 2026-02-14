@@ -1,0 +1,20 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "teammateMode": "in-process",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "F=$(cat | jq -r '.tool_input.file_path // empty'); if [[ \"$F\" == *.go ]]; then go vet ./... 2>&1 | head -20; fi",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
