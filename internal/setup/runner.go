@@ -163,7 +163,11 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 
 	env := gh.SuppressEnvTokens()
 	env["GH_CONFIG_DIR"] = ghDir
-	err = r.Commander.RunInteractiveWithEnv(ctx, env, "gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "ssh")
+	ghLoginArgs := []string{"auth", "login", "--hostname", "github.com", "--git-protocol", "ssh"}
+	if identityFile != "" {
+		ghLoginArgs = append(ghLoginArgs, "--ssh-key", identityFile+".pub")
+	}
+	err = r.Commander.RunInteractiveWithEnv(ctx, env, "gh", ghLoginArgs...)
 	if err != nil {
 		// gh auth login이 SSH 키 업로드 실패(422) 등으로 에러를 반환해도
 		// 인증 자체는 성공했을 수 있다. gh auth status로 실제 인증 상태를 확인한다.

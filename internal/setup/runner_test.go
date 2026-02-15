@@ -470,3 +470,101 @@ func TestRunner_FirstRun_SSHKeySkip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "github.com-manual", cfg.Profiles["work"].SSHHost)
 }
+
+func TestRunner_GhAuthLogin_PassesSSHKeyFlag_Generate(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	sshDir := dir + "/ssh"
+	sshConfigPath := dir + "/ssh/config"
+	require.NoError(t, os.MkdirAll(sshDir, 0700))
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh-keygen", "", nil)
+	fc.Register("gh auth login", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "work", GitName: "Test", GitEmail: "test@work.com",
+		}},
+		sshKeyChoice: SSHKeyChoice{Action: "generate"},
+		owners:       []string{"my-org"},
+		addMore:      []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:       cfgPath,
+		Commander:     fc,
+		FormRunner:    mock,
+		SSHDir:        sshDir,
+		SSHConfigPath: sshConfigPath,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// gh auth login에 --ssh-key 플래그가 전달되었는지 확인
+	expectedKeyFlag := fmt.Sprintf("--ssh-key %s/id_ed25519_work.pub", sshDir)
+	assert.True(t, fc.Called("gh auth login"), "gh auth login이 호출되어야 한다")
+	var ghLoginCmd string
+	for _, call := range fc.Calls {
+		if len(call) > 13 && call[:13] == "gh auth login" {
+			ghLoginCmd = call
+			break
+		}
+	}
+	assert.Contains(t, ghLoginCmd, expectedKeyFlag,
+		"gh auth login에 --ssh-key 플래그로 프로필 전용 공개키가 전달되어야 한다")
+}
+
+func TestRunner_GhAuthLogin_PassesSSHKeyFlag_Existing(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := dir + "/config.toml"
+	sshDir := dir + "/ssh"
+	sshConfigPath := dir + "/ssh/config"
+	require.NoError(t, os.MkdirAll(sshDir, 0700))
+
+	existingKeyPath := sshDir + "/id_ed25519_old"
+	require.NoError(t, os.WriteFile(existingKeyPath, []byte("private"), 0600))
+	require.NoError(t, os.WriteFile(existingKeyPath+".pub", []byte("public"), 0644))
+
+	fc := testutil.NewFakeCommander()
+	fc.Register("gh auth login", "ok", nil)
+	fc.Register("gh api user/orgs --jq .[].login", "my-org\n", nil)
+	fc.Register("gh api user --jq .login", "myuser\n", nil)
+	registerDoctorCommands(fc)
+
+	mock := &mockFormRunner{
+		profileInputs: []*ProfileInput{{
+			Name: "personal", GitName: "Me", GitEmail: "me@example.com",
+		}},
+		sshKeyChoice: SSHKeyChoice{Action: "existing", ExistingKey: existingKeyPath},
+		owners:       []string{"my-org"},
+		addMore:      []bool{false},
+	}
+
+	r := &Runner{
+		CfgPath:       cfgPath,
+		Commander:     fc,
+		FormRunner:    mock,
+		SSHDir:        sshDir,
+		SSHConfigPath: sshConfigPath,
+	}
+
+	err := r.Run(context.Background())
+	require.NoError(t, err)
+
+	// gh auth login에 --ssh-key 플래그가 전달되었는지 확인
+	expectedKeyFlag := fmt.Sprintf("--ssh-key %s.pub", existingKeyPath)
+	var ghLoginCmd string
+	for _, call := range fc.Calls {
+		if len(call) > 13 && call[:13] == "gh auth login" {
+			ghLoginCmd = call
+			break
+		}
+	}
+	assert.Contains(t, ghLoginCmd, expectedKeyFlag,
+		"gh auth login에 --ssh-key 플래그로 기존 공개키가 전달되어야 한다")
+}
