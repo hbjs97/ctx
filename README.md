@@ -16,6 +16,24 @@ GitHub 멀티계정 컨텍스트 매니저 CLI.
 - Go 1.26+
 - `git`, `gh`, `ssh` CLI 설치
 
+### Go 설치
+
+프로젝트는 Go 1.26 이상을 요구한다. 아직 Go가 설치되지 않았거나 버전이 낮다면 아래 방법 중 하나로 설치한다.
+
+**macOS (Homebrew):**
+
+```bash
+brew install go && go version
+```
+
+**Linux:**
+
+```bash
+ARCH=$(dpkg --print-architecture 2>/dev/null || (uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')) && sudo rm -rf /usr/local/go && curl -fsSL "https://go.dev/dl/go1.26.0.linux-${ARCH}.tar.gz" | sudo tar -C /usr/local -xz && echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc && source ~/.bashrc && go version
+```
+
+그 외 설치 방법은 [go.dev/dl](https://go.dev/dl/) 참조.
+
 ## 설치
 
 ```bash
