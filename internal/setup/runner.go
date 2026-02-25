@@ -177,6 +177,11 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 		}
 	}
 
+	// SSH 키가 GitHub에 등록되었는지 확인 및 보정
+	if identityFile != "" {
+		r.ensureSSHKeyRegistered(ctx, env, input.SSHHost, identityFile+".pub", input.Name)
+	}
+
 	// 조직 조회 + 선택
 	detected := DetectOrgs(ctx, r.Commander, ghDir)
 	owners, err := r.FormRunner.RunOwnersSelect(detected)
@@ -186,6 +191,53 @@ func (r *Runner) collectProfile(ctx context.Context, cfg *config.Config, default
 	input.Owners = owners
 
 	return input, nil
+}
+
+// ensureSSHKeyRegistered는 SSH 키가 GitHub에 등록되었는지 확인하고, 필요하면 등록을 시도한다.
+// gh auth login --ssh-key 플래그가 키 업로드에 실패했을 때(scope 부족 등) fallback으로 동작한다.
+func (r *Runner) ensureSSHKeyRegistered(ctx context.Context, env map[string]string, sshHost, pubKeyPath, profileName string) {
+	// SSH 연결 확인 — 이미 키가 등록되어 있으면 skip
+	out, err := r.Commander.Run(ctx, "ssh", "-T", fmt.Sprintf("git@%s", sshHost))
+	if err == nil || strings.Contains(string(out), "successfully authenticated") {
+		return
+	}
+
+	// gh ssh-key add로 직접 등록 시도
+	title := fmt.Sprintf("ctx-%s", profileName)
+	addOut, addErr := r.Commander.RunWithEnv(ctx, env, "gh", "ssh-key", "add", pubKeyPath, "--title", title)
+	if addErr == nil {
+		fmt.Println("SSH 키가 GitHub에 등록되었습니다.")
+		return
+	}
+
+	// 키가 다른 GitHub 계정에 이미 등록된 경우 — scope refresh로 해결 불가
+	if strings.Contains(string(addOut), "already in use") {
+		fmt.Fprintf(os.Stderr, "경고: 이 SSH 키는 다른 GitHub 계정에 이미 등록되어 있습니다.\n")
+		fmt.Fprintf(os.Stderr, "  다른 계정에서 키를 제거하거나 새 키를 생성하세요.\n")
+		return
+	}
+
+	// scope 부족(404)일 수 있음 — admin:public_key 권한 추가
+	fmt.Fprintf(os.Stderr, "SSH 키 등록에 admin:public_key 권한이 필요합니다.\n")
+	refreshErr := r.Commander.RunInteractiveWithEnv(ctx, env, "gh", "auth", "refresh", "-h", "github.com", "-s", "admin:public_key")
+	if refreshErr != nil {
+		r.printSSHKeyManualFix(pubKeyPath, title)
+		return
+	}
+
+	// 권한 추가 후 재시도
+	_, retryErr := r.Commander.RunWithEnv(ctx, env, "gh", "ssh-key", "add", pubKeyPath, "--title", title)
+	if retryErr != nil {
+		r.printSSHKeyManualFix(pubKeyPath, title)
+		return
+	}
+	fmt.Println("SSH 키가 GitHub에 등록되었습니다.")
+}
+
+// printSSHKeyManualFix는 SSH 키 수동 등록 안내를 출력한다.
+func (r *Runner) printSSHKeyManualFix(pubKeyPath, title string) {
+	fmt.Fprintf(os.Stderr, "경고: SSH 키를 GitHub에 등록하지 못했습니다.\n")
+	fmt.Fprintf(os.Stderr, "  수동 등록: gh ssh-key add %s --title %s\n", pubKeyPath, title)
 }
 
 // usedIdentityFiles는 기존 프로필들이 사용 중인 SSH IdentityFile 경로를 수집한다.

@@ -100,7 +100,7 @@ func CheckSSH(ctx context.Context, cmd cmdexec.Commander, sshHost string) DiagRe
 			Name:    fmt.Sprintf("ssh_%s", sshHost),
 			Status:  StatusFail,
 			Message: fmt.Sprintf("SSH %s 연결 실패", sshHost),
-			Fix:     fmt.Sprintf("ssh -T git@%s 로 연결 확인", sshHost),
+			Fix:     fmt.Sprintf("ssh -T git@%s 로 연결 확인. 키 미등록 시 gh ssh-key add <공개키>.pub 실행", sshHost),
 		}
 	}
 	return DiagResult{

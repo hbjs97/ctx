@@ -80,7 +80,7 @@ func registerDoctorCommands(fc *testutil.FakeCommander) {
 	fc.Register("gh --version", "gh version 2.40.0", nil)
 	fc.Register("ssh -V", "OpenSSH_9.0", nil)
 	fc.Register("gh auth status", "Logged in", nil)
-	fc.Register("ssh -T", "Hi user!", fmt.Errorf("exit status 1: Hi user!"))
+	fc.Register("ssh -T", "Hi user! You've successfully authenticated, but GitHub does not provide shell access.", fmt.Errorf("exit status 1"))
 }
 
 func TestRunner_FirstRun_SingleProfile(t *testing.T) {
@@ -517,6 +517,87 @@ func TestRunner_GhAuthLogin_PassesSSHKeyFlag_Generate(t *testing.T) {
 	}
 	assert.Contains(t, ghLoginCmd, expectedKeyFlag,
 		"gh auth login에 --ssh-key 플래그로 프로필 전용 공개키가 전달되어야 한다")
+}
+
+func TestEnsureSSHKeyRegistered_AlreadyWorks(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "Hi user! You've successfully authenticated, but GitHub does not provide shell access.", fmt.Errorf("exit status 1"))
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.False(t, fc.Called("gh ssh-key add"))
+	assert.False(t, fc.Called("gh auth refresh"))
+}
+
+func TestEnsureSSHKeyRegistered_AddSucceeds(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "git@github.com: Permission denied (publickey).", fmt.Errorf("exit status 255"))
+	fc.Register("gh ssh-key add", "", nil)
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.True(t, fc.Called("gh ssh-key add"))
+	assert.False(t, fc.Called("gh auth refresh"))
+}
+
+func TestEnsureSSHKeyRegistered_NeedsScopeRefresh(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "git@github.com: Permission denied (publickey).", fmt.Errorf("exit status 255"))
+	fc.Register("gh ssh-key add", "HTTP 404: Not Found", fmt.Errorf("exit status 1"))
+	fc.Register("gh auth refresh", "", nil)
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.True(t, fc.Called("gh ssh-key add"))
+	assert.True(t, fc.Called("gh auth refresh"))
+	// gh ssh-key add는 두 번 호출됨 (첫 시도 + 재시도)
+	assert.Equal(t, 2, fc.CallCount("gh ssh-key add"))
+}
+
+func TestEnsureSSHKeyRegistered_SSHSucceedsNoError(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "Hi user! You've successfully authenticated", nil)
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.False(t, fc.Called("gh ssh-key add"))
+}
+
+func TestEnsureSSHKeyRegistered_KeyAlreadyInUse(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "git@github.com: Permission denied (publickey).", fmt.Errorf("exit status 255"))
+	fc.Register("gh ssh-key add", "HTTP 422: Unprocessable Entity - key is already in use", fmt.Errorf("exit status 1"))
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.True(t, fc.Called("gh ssh-key add"))
+	// 422는 scope 문제가 아니므로 refresh를 시도하지 않아야 한다
+	assert.False(t, fc.Called("gh auth refresh"))
+}
+
+func TestEnsureSSHKeyRegistered_AllFails_NonFatal(t *testing.T) {
+	fc := testutil.NewFakeCommander()
+	fc.Register("ssh -T", "git@github.com: Permission denied (publickey).", fmt.Errorf("exit status 255"))
+	fc.Register("gh ssh-key add", "HTTP 404: Not Found", fmt.Errorf("exit status 1"))
+	fc.Register("gh auth refresh", "", fmt.Errorf("refresh failed"))
+
+	r := &Runner{Commander: fc}
+	env := map[string]string{"GH_CONFIG_DIR": "/tmp/gh-work"}
+	// 패닉이나 에러 없이 정상 리턴해야 한다
+	r.ensureSSHKeyRegistered(context.Background(), env, "github.com-work", "/tmp/key.pub", "work")
+
+	assert.True(t, fc.Called("gh ssh-key add"))
+	assert.True(t, fc.Called("gh auth refresh"))
 }
 
 func TestRunner_GhAuthLogin_PassesSSHKeyFlag_Existing(t *testing.T) {
